@@ -1,0 +1,141 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  margin: 0;
+  font-family: 'Segoe UI', sans-serif;
+  background: #f8fafc;
+}
+
+.logo-intro {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  pointer-events: none;
+  animation: logo-pop 0.9s ease-out forwards, logo-shrink 0.8s ease-in-out 1.2s forwards;
+}
+
+.logo-shrink {
+  opacity: 0;
+}
+
+.page-reveal {
+  animation: page-reveal 0.9s ease-out forwards;
+}
+
+@keyframes logo-pop {
+  0% {
+    opacity: 0;
+    transform: scale(0.4) translateY(30px);
+  }
+  60% {
+    opacity: 1;
+    transform: scale(1.08) translateY(0);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+@keyframes logo-shrink {
+  0% {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+  100% {
+    opacity: 0.2;
+    transform: scale(0.22) translateY(-18px);
+    filter: blur(1px);
+  }
+}
+
+@keyframes page-reveal {
+  0% {
+    opacity: 0;
+    transform: translateY(22px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.platform-preview-card {
+  opacity: 0;
+  transition: opacity 800ms ease, transform 800ms ease, box-shadow 220ms ease;
+}
+
+.platform-slide-left {
+  transform: translateX(-72px);
+}
+
+.platform-slide-right {
+  transform: translateX(72px);
+}
+
+.platform-preview-visible {
+  opacity: 1;
+  transform: translateX(0);
+}
+
+.platform-preview-image {
+  opacity: 0;
+  transform: scale(0.96);
+  transition: opacity 900ms ease, transform 900ms ease, filter 220ms ease;
+}
+
+.platform-preview-visible .platform-preview-image {
+  opacity: 1;
+  transform: scale(1);
+}
+
+.platform-preview-card:hover .platform-preview-image {
+  filter: brightness(1.05) saturate(1.08);
+}
+
+.highlight-card {
+  animation: highlight-card-reveal 0.65s ease-out both;
+  transition: transform 220ms ease, box-shadow 220ms ease;
+}
+
+.highlight-card:hover {
+  transform: translateY(-6px);
+  box-shadow: 0 14px 28px rgba(15, 23, 42, 0.1);
+}
+
+@keyframes highlight-card-reveal {
+  0% {
+    opacity: 0;
+    transform: translateY(18px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .platform-preview-card,
+  .platform-preview-image,
+  .highlight-card {
+    animation: none;
+  }
+
+  .platform-preview-card,
+  .platform-preview-image {
+    opacity: 1;
+    transform: none;
+    transition: none;
+  }
+
+  .highlight-card {
+    transition: none;
+  }
+}
+
