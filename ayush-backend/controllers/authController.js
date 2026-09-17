@@ -362,7 +362,7 @@ export const verifyPatientOTP = async (req, res) => {
         role: "patient",
         languagePreference: patient.languagePreference,
       },
-      process.env.JWT_SECRET || "ayushcare_jwt_secret_key_2026",
+      process.env.JWT_SECRET,
       {
         expiresIn: "24h",
       },
@@ -607,7 +607,7 @@ export const loginDoctor = async (req, res) => {
         id: doctor._id,
         role: "doctor",
       },
-      process.env.JWT_SECRET || "ayushcare_jwt_secret_key_2026",
+      process.env.JWT_SECRET,
       {
         expiresIn: "24h",
       },
