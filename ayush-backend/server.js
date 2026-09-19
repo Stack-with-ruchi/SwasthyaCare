@@ -22,14 +22,6 @@ const PORT = process.env.PORT;
 
 const MONGO_URI = process.env.MONGO_URI;
 
-/*
-  Translation API URL
-
-  You can change this in your .env file:
-
-  LIBRETRANSLATE_URL=http://localhost:5001/translate
-*/
-
 const LIBRETRANSLATE_URL = process.env.LIBRETRANSLATE_URL;
 
 const translationCache = new Map();
