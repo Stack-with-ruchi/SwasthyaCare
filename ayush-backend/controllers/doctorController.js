@@ -21,6 +21,12 @@ const groq = new Groq({
   ========================================
   FIND DOCTOR FROM LOGIN IDENTIFIER
   ========================================
+
+  Supports:
+  1. MongoDB Doctor ID
+  2. Mobile number
+  3. Email
+  4. Registration number
 */
 
 const findDoctorByIdentifier = async (identifier) => {
@@ -33,6 +39,26 @@ const findDoctorByIdentifier = async (identifier) => {
   if (!value) {
     return null;
   }
+
+  /*
+    ----------------------------------------
+    FIRST: TRY MONGODB DOCTOR ID
+    ----------------------------------------
+  */
+
+  if (mongoose.Types.ObjectId.isValid(value)) {
+    const doctorById = await Doctor.findById(value);
+
+    if (doctorById) {
+      return doctorById;
+    }
+  }
+
+  /*
+    ----------------------------------------
+    SECOND: TRY MOBILE / EMAIL / REG NUMBER
+    ----------------------------------------
+  */
 
   return await Doctor.findOne({
     $or: [
@@ -326,10 +352,10 @@ export const getDoctorDashboard = async (req, res) => {
         },
 
         aiSummary: {
-          overview: patientCase.aiSummary.fullSummary,
-          summary: patientCase.aiSummary.fullSummary,
+          overview: patientCase.aiSummary?.fullSummary || "",
+          summary: patientCase.aiSummary?.fullSummary || "",
           generatedAt:
-            patientCase.aiSummary.generatedAt || patientCase.createdAt,
+            patientCase.aiSummary?.generatedAt || patientCase.createdAt,
           summaryStatus: patientCase.aiSummaryStatus || "Approved",
           patientApproved: true,
           approvedForDoctorSharing: true,
@@ -950,12 +976,6 @@ export const generateDoctorCaseSummary = async (req, res) => {
 
     const identifier = getDoctorIdentifier(req);
 
-    /*
-      ========================================
-      VALIDATE DOCTOR IDENTIFIER
-      ========================================
-    */
-
     if (!identifier) {
       return res.status(400).json({
         success: false,
@@ -963,24 +983,12 @@ export const generateDoctorCaseSummary = async (req, res) => {
       });
     }
 
-    /*
-      ========================================
-      VALIDATE CASE ID
-      ========================================
-    */
-
     if (!isValidObjectId(caseId)) {
       return res.status(400).json({
         success: false,
         message: "Invalid case ID.",
       });
     }
-
-    /*
-      ========================================
-      FIND DOCTOR
-      ========================================
-    */
 
     const doctor = await findDoctorByIdentifier(identifier);
 
@@ -990,12 +998,6 @@ export const generateDoctorCaseSummary = async (req, res) => {
         message: "Doctor not found.",
       });
     }
-
-    /*
-      ========================================
-      FIND ASSIGNED CASE
-      ========================================
-    */
 
     const patientCase = await TokenCase.findOne({
       _id: caseId,
@@ -1011,12 +1013,6 @@ export const generateDoctorCaseSummary = async (req, res) => {
         message: "You are not authorized to access this case.",
       });
     }
-
-    /*
-      ========================================
-      CHECK DATA CONSENT
-      ========================================
-    */
 
     if (!hasConfirmedConsent(patientCase)) {
       return res.status(403).json({
@@ -1036,24 +1032,12 @@ export const generateDoctorCaseSummary = async (req, res) => {
       });
     }
 
-    /*
-      ========================================
-      CURRENT CASE ENQUIRY
-      ========================================
-    */
-
     const currentEnquiry = patientCase.aiCaseEnquiry || {};
 
     const symptoms = currentEnquiry.symptoms || "Not provided";
     const prakriti = currentEnquiry.prakriti || "Not provided";
     const duration = currentEnquiry.duration || "Not provided";
     const notes = currentEnquiry.notes || "Not provided";
-
-    /*
-      ========================================
-      PREVIOUS AUTHORIZED CASES
-      ========================================
-    */
 
     const previousCases = await TokenCase.find({
       patientId: patient._id,
@@ -1112,12 +1096,6 @@ ${previousCase.doctorAction || "Not available"}
         .join("\n");
     }
 
-    /*
-      ========================================
-      GET CURRENT CASE DOCUMENTS
-      ========================================
-    */
-
     let documents = [];
 
     if (
@@ -1128,7 +1106,6 @@ ${previousCase.doctorAction || "Not available"}
         _id: {
           $in: patientCase.uploadedDocuments,
         },
-
         patientId: patient._id,
       })
         .select("_id name type doctorName uploadDate")
@@ -1136,12 +1113,6 @@ ${previousCase.doctorAction || "Not available"}
           uploadDate: -1,
         });
     }
-
-    /*
-      ========================================
-      REPORT DATA
-      ========================================
-    */
 
     let reportData = "No uploaded reports available.";
 
@@ -1166,12 +1137,6 @@ ${document.uploadDate || "Not available"}
         )
         .join("\n");
     }
-
-    /*
-      ========================================
-      AI PROMPT
-      ========================================
-    */
 
     const prompt = `
 You are an AI Health and Ayurveda Case Summary Assistant.
@@ -1258,12 +1223,6 @@ Do not include patient IDs, token IDs, ABHA IDs,
 case IDs, or token numbers in the output.
 `;
 
-    /*
-      ========================================
-      CALL GROQ
-      ========================================
-    */
-
     const completion = await groq.chat.completions.create({
       model: "openai/gpt-oss-120b",
 
@@ -1306,22 +1265,8 @@ no bullet points, no numbered lists, and no characters like #.
 
     const sanitizedSummary = sanitizeSummaryText(summary);
 
-    /*
-      ========================================
-      SAVE AI SUMMARY
-      ========================================
-    */
-
     patientCase.aiSummary = {
       overview: sanitizedSummary,
-
-      /*
-        IMPORTANT:
-        Store the complete AI summary in fullSummary
-        so the doctor editor and frontend can use
-        the same field consistently.
-      */
-
       fullSummary: sanitizedSummary,
 
       ayushEvaluation: {
@@ -1344,12 +1289,6 @@ no bullet points, no numbered lists, and no characters like #.
 
     patientCase.summaryStatus = "AI summary Available";
 
-    /*
-      When a fresh AI summary is generated,
-      the doctor-edited version should be reset
-      because the AI source has changed.
-    */
-
     patientCase.doctorEditedSummary = "";
 
     patientCase.doctorEditedAt = null;
@@ -1359,12 +1298,6 @@ no bullet points, no numbered lists, and no characters like #.
     patientCase.summarySource = "AI";
 
     await patientCase.save();
-
-    /*
-      ========================================
-      RESPONSE
-      ========================================
-    */
 
     return res.status(200).json({
       success: true,
@@ -1402,12 +1335,6 @@ export const getDoctorEditableSummary = async (req, res) => {
 
     const identifier = getDoctorIdentifier(req);
 
-    /*
-      ========================================
-      VALIDATE DOCTOR IDENTIFIER
-      ========================================
-    */
-
     if (!identifier) {
       return res.status(400).json({
         success: false,
@@ -1415,24 +1342,12 @@ export const getDoctorEditableSummary = async (req, res) => {
       });
     }
 
-    /*
-      ========================================
-      VALIDATE CASE ID
-      ========================================
-    */
-
     if (!isValidObjectId(caseId)) {
       return res.status(400).json({
         success: false,
         message: "Invalid case ID.",
       });
     }
-
-    /*
-      ========================================
-      FIND DOCTOR
-      ========================================
-    */
 
     const doctor = await findDoctorByIdentifier(identifier);
 
@@ -1442,12 +1357,6 @@ export const getDoctorEditableSummary = async (req, res) => {
         message: "Doctor not found.",
       });
     }
-
-    /*
-      ========================================
-      FIND CASE
-      ========================================
-    */
 
     const patientCase = await TokenCase.findOne({
       _id: caseId,
@@ -1461,12 +1370,6 @@ export const getDoctorEditableSummary = async (req, res) => {
       });
     }
 
-    /*
-      ========================================
-      CHECK DATA CONSENT
-      ========================================
-    */
-
     if (!hasConfirmedConsent(patientCase)) {
       return res.status(403).json({
         success: false,
@@ -1475,38 +1378,14 @@ export const getDoctorEditableSummary = async (req, res) => {
       });
     }
 
-    /*
-      ========================================
-      ORIGINAL AI SUMMARY
-      ========================================
-    */
-
     const aiSummary =
       patientCase.aiSummary?.fullSummary ||
       patientCase.aiSummary?.overview ||
       "";
 
-    /*
-      ========================================
-      DOCTOR EDITED SUMMARY
-      ========================================
-    */
-
     const doctorEditedSummary = patientCase.doctorEditedSummary || "";
 
-    /*
-      ========================================
-      SUMMARY TO DISPLAY
-      ========================================
-    */
-
     const editableSummary = doctorEditedSummary || aiSummary;
-
-    /*
-      ========================================
-      RESPONSE
-      ========================================
-    */
 
     return res.status(200).json({
       success: true,
@@ -1552,12 +1431,6 @@ export const updateDoctorEditedSummary = async (req, res) => {
 
     const identifier = getDoctorIdentifier(req);
 
-    /*
-      ========================================
-      VALIDATE DOCTOR IDENTIFIER
-      ========================================
-    */
-
     if (!identifier) {
       return res.status(400).json({
         success: false,
@@ -1565,24 +1438,12 @@ export const updateDoctorEditedSummary = async (req, res) => {
       });
     }
 
-    /*
-      ========================================
-      VALIDATE CASE ID
-      ========================================
-    */
-
     if (!isValidObjectId(caseId)) {
       return res.status(400).json({
         success: false,
         message: "Invalid case ID.",
       });
     }
-
-    /*
-      ========================================
-      VALIDATE SUMMARY
-      ========================================
-    */
 
     if (
       typeof doctorEditedSummary !== "string" ||
@@ -1594,12 +1455,6 @@ export const updateDoctorEditedSummary = async (req, res) => {
       });
     }
 
-    /*
-      ========================================
-      FIND DOCTOR
-      ========================================
-    */
-
     const doctor = await findDoctorByIdentifier(identifier);
 
     if (!doctor) {
@@ -1608,12 +1463,6 @@ export const updateDoctorEditedSummary = async (req, res) => {
         message: "Doctor not found.",
       });
     }
-
-    /*
-      ========================================
-      FIND CASE
-      ========================================
-    */
 
     const patientCase = await TokenCase.findOne({
       _id: caseId,
@@ -1627,12 +1476,6 @@ export const updateDoctorEditedSummary = async (req, res) => {
       });
     }
 
-    /*
-      ========================================
-      CHECK DATA CONSENT
-      ========================================
-    */
-
     if (!hasConfirmedConsent(patientCase)) {
       return res.status(403).json({
         success: false,
@@ -1640,19 +1483,6 @@ export const updateDoctorEditedSummary = async (req, res) => {
         consentStatus: patientCase.dataConsent?.status || "Pending",
       });
     }
-
-    /*
-      ========================================
-      SAVE DOCTOR EDITED SUMMARY
-      ========================================
-
-      IMPORTANT:
-
-      aiSummary remains unchanged.
-
-      doctorEditedSummary contains the final version
-      after the doctor makes corrections/additions.
-    */
 
     patientCase.doctorEditedSummary = doctorEditedSummary.trim();
 
@@ -1662,19 +1492,7 @@ export const updateDoctorEditedSummary = async (req, res) => {
 
     patientCase.summarySource = "DoctorEdited";
 
-    /*
-      ========================================
-      SAVE CASE
-      ========================================
-    */
-
     await patientCase.save();
-
-    /*
-      ========================================
-      RESPONSE
-      ========================================
-    */
 
     return res.status(200).json({
       success: true,

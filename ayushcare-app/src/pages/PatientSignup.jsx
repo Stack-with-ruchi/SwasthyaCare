@@ -45,9 +45,14 @@ const ENGLISH_SIGNUP_TEXT = {
   createAccount: "Create Account",
   creatingAccount: "CREATING ACCOUNT...",
 
-  invalidMobile: "Please enter a valid 10-digit mobile number.",
-  invalidOtp: "Invalid OTP code. Please try again.",
-  failedOtp: "Failed to send OTP.",
+  invalidMobile:
+    "Please enter a valid 10-digit mobile number.",
+
+  invalidOtp:
+    "Invalid OTP code. Please try again.",
+
+  failedOtp:
+    "Failed to send OTP.",
 };
 
 export default function PatientSignup() {
@@ -62,6 +67,7 @@ export default function PatientSignup() {
 
   // =====================================================
   // STEPS
+  //
   // 1 = Language Selection
   // 2 = Mobile Number
   // 3 = OTP Verification
@@ -100,9 +106,11 @@ export default function PatientSignup() {
   // =====================================================
 
   useEffect(() => {
-    apiRequest("/languages/list")
-      .then((data) => {
-        setLanguages(
+    const loadLanguages = async () => {
+      try {
+        const data = await apiRequest("/languages/list");
+
+        const availableLanguages =
           data.languages?.length > 0
             ? data.languages
             : [
@@ -111,18 +119,65 @@ export default function PatientSignup() {
                   name: "English",
                   nativeName: "English",
                 },
-              ],
+              ];
+
+        setLanguages(availableLanguages);
+
+        // If no language is already selected,
+        // use English.
+        if (!language?.code) {
+          const english =
+            availableLanguages.find(
+              (lang) => lang.code === "en"
+            ) || availableLanguages[0];
+
+          if (english) {
+            setLanguage(english);
+
+            localStorage.setItem(
+              "preferred_language",
+              english.code
+            );
+
+            localStorage.setItem(
+              "selectedLanguage",
+              JSON.stringify(english)
+            );
+          }
+        }
+      } catch (error) {
+        console.error(
+          "Failed to load languages:",
+          error
         );
-      })
-      .catch(() => {
-        setLanguages([
+
+        const fallbackLanguages = [
           {
             code: "en",
             name: "English",
             nativeName: "English",
           },
-        ]);
-      });
+        ];
+
+        setLanguages(fallbackLanguages);
+
+        if (!language?.code) {
+          setLanguage(fallbackLanguages[0]);
+
+          localStorage.setItem(
+            "preferred_language",
+            "en"
+          );
+
+          localStorage.setItem(
+            "selectedLanguage",
+            JSON.stringify(fallbackLanguages[0])
+          );
+        }
+      }
+    };
+
+    loadLanguages();
   }, []);
 
   // =====================================================
@@ -132,7 +187,7 @@ export default function PatientSignup() {
   const handleLanguageChange = (languageCode) => {
     const selectedLanguageData =
       languages.find(
-        (lang) => lang.code === languageCode,
+        (lang) => lang.code === languageCode
       ) || {
         code: "en",
         name: "English",
@@ -141,15 +196,14 @@ export default function PatientSignup() {
 
     setLanguage(selectedLanguageData);
 
-    // Keep language saved
     localStorage.setItem(
       "preferred_language",
-      selectedLanguageData.code,
+      selectedLanguageData.code
     );
 
     localStorage.setItem(
       "selectedLanguage",
-      JSON.stringify(selectedLanguageData),
+      JSON.stringify(selectedLanguageData)
     );
   };
 
@@ -160,7 +214,7 @@ export default function PatientSignup() {
   const handleContinue = () => {
     const selectedLanguageData =
       languages.find(
-        (lang) => lang.code === language?.code,
+        (lang) => lang.code === language?.code
       ) || {
         code: "en",
         name: "English",
@@ -169,16 +223,17 @@ export default function PatientSignup() {
 
     setLanguage(selectedLanguageData);
 
-    // Save language using the SAME keys as PatientLogin
     localStorage.setItem(
       "preferred_language",
-      selectedLanguageData.code,
+      selectedLanguageData.code
     );
 
     localStorage.setItem(
       "selectedLanguage",
-      JSON.stringify(selectedLanguageData),
+      JSON.stringify(selectedLanguageData)
     );
+
+    setErrorMessage("");
 
     setStep(2);
   };
@@ -204,21 +259,29 @@ export default function PatientSignup() {
     try {
       setLoading(true);
 
-      // Demo OTP for development
+      // -----------------------------------------------
+      // DEMO OTP
+      // -----------------------------------------------
+
       const simulatedOtp = Math.floor(
-        100000 + Math.random() * 900000,
+        100000 + Math.random() * 900000
       ).toString();
 
       setDemoOtpCode(simulatedOtp);
 
       alert(
-        "DEMO SIGNUP OTP: " + simulatedOtp,
+        "DEMO SIGNUP OTP: " + simulatedOtp
       );
 
       setStep(3);
     } catch (err) {
+      console.error(
+        "Send signup OTP error:",
+        err
+      );
+
       setErrorMessage(
-        err.message || t.failedOtp,
+        err.message || t.failedOtp
       );
     } finally {
       setLoading(false);
@@ -240,7 +303,7 @@ export default function PatientSignup() {
 
     if (!demoOtpCode) {
       setErrorMessage(
-        "Please request OTP again.",
+        "Please request OTP again."
       );
       return;
     }
@@ -251,6 +314,7 @@ export default function PatientSignup() {
     }
 
     if (normalizedOtp === demoOtpCode) {
+      setErrorMessage("");
       setStep(4);
     } else {
       setErrorMessage(t.invalidOtp);
@@ -274,6 +338,15 @@ export default function PatientSignup() {
       formData.abhaNumber.trim();
 
     // ---------------------------------------------------
+    // MOBILE VALIDATION
+    // ---------------------------------------------------
+
+    if (!/^\d{10}$/.test(normalizedMobile)) {
+      setErrorMessage(t.invalidMobile);
+      return;
+    }
+
+    // ---------------------------------------------------
     // ABHA CONSENT VALIDATION
     // ---------------------------------------------------
 
@@ -282,7 +355,7 @@ export default function PatientSignup() {
       !abdmConsent
     ) {
       setErrorMessage(
-        t.abdmConsentRequired,
+        t.abdmConsentRequired
       );
       return;
     }
@@ -294,7 +367,7 @@ export default function PatientSignup() {
     const selectedLanguageData =
       languages.find(
         (lang) =>
-          lang.code === language?.code,
+          lang.code === language?.code
       ) || {
         code: "en",
         name: "English",
@@ -332,6 +405,21 @@ export default function PatientSignup() {
       setLoading(true);
 
       // =================================================
+      // REMOVE OLD PATIENT SESSION
+      //
+      // This prevents an old patient account from
+      // interfering with the newly created account.
+      // =================================================
+
+      localStorage.removeItem(
+        "patient_token"
+      );
+
+      localStorage.removeItem(
+        "patient_user"
+      );
+
+      // =================================================
       // CALL PATIENT SIGNUP API
       // =================================================
 
@@ -342,9 +430,9 @@ export default function PatientSignup() {
             method: "POST",
 
             body: JSON.stringify(
-              signupPayload,
+              signupPayload
             ),
-          },
+          }
         );
 
       // =================================================
@@ -353,7 +441,7 @@ export default function PatientSignup() {
 
       if (!signupResponse?.token) {
         throw new Error(
-          "Account was created, but automatic login could not be completed. Please try logging in.",
+          "Account was created, but automatic login could not be completed. Please try logging in."
         );
       }
 
@@ -363,20 +451,24 @@ export default function PatientSignup() {
 
       if (!signupResponse?.patient) {
         throw new Error(
-          "Patient account information was not returned by the server.",
+          "Patient account information was not returned by the server."
         );
       }
 
       // =================================================
-      // SAVE PATIENT LOGIN TOKEN
-      //
-      // IMPORTANT:
-      // These keys MUST match PatientLogin.jsx
+      // GET PATIENT DATA
+      // =================================================
+
+      const patient =
+        signupResponse.patient;
+
+      // =================================================
+      // SAVE PATIENT AUTHENTICATION TOKEN
       // =================================================
 
       localStorage.setItem(
         "patient_token",
-        signupResponse.token,
+        signupResponse.token
       );
 
       // =================================================
@@ -385,10 +477,28 @@ export default function PatientSignup() {
 
       localStorage.setItem(
         "patient_user",
-        JSON.stringify(
-          signupResponse.patient,
-        ),
+        JSON.stringify(patient)
       );
+
+      // =================================================
+      // SAVE PATIENT ID SEPARATELY
+      //
+      // This is useful if dashboard components need
+      // the MongoDB patient ID.
+      // =================================================
+
+      const patientId =
+        patient._id ||
+        patient.id ||
+        patient.patientId ||
+        "";
+
+      if (patientId) {
+        localStorage.setItem(
+          "patient_id",
+          patientId.toString()
+        );
+      }
 
       // =================================================
       // SAVE LANGUAGE
@@ -396,14 +506,14 @@ export default function PatientSignup() {
 
       localStorage.setItem(
         "preferred_language",
-        selectedLanguageData.code,
+        selectedLanguageData.code
       );
 
       localStorage.setItem(
         "selectedLanguage",
         JSON.stringify(
-          selectedLanguageData,
-        ),
+          selectedLanguageData
+        )
       );
 
       // =================================================
@@ -411,31 +521,45 @@ export default function PatientSignup() {
       // =================================================
 
       setLanguage(
-        selectedLanguageData,
+        selectedLanguageData
       );
+
+      // =================================================
+      // CLEAR FORM DATA
+      // =================================================
+
+      setOtp("");
+      setDemoOtpCode("");
 
       // =================================================
       // AUTOMATIC LOGIN COMPLETE
       // DIRECTLY OPEN PATIENT DASHBOARD
       // =================================================
 
-      navigate("/patient/dashboard", {
-        replace: true,
-      });
+      navigate(
+        "/patient/dashboard",
+        {
+          replace: true,
+        }
+      );
     } catch (err) {
       console.error(
         "Patient signup error:",
-        err,
+        err
       );
 
       setErrorMessage(
         err.message ||
-          "Failed to create account.",
+          "Failed to create patient account."
       );
     } finally {
       setLoading(false);
     }
   };
+
+  // =====================================================
+  // UI
+  // =====================================================
 
   return (
     <div className="min-h-screen bg-[radial-gradient(circle_at_top,_#e0f2fe,_#f8fafc_35%,_#ecfdf5_100%)] text-slate-800 pt-20 pb-12">
@@ -510,7 +634,7 @@ export default function PatientSignup() {
                   }
                   onChange={(e) =>
                     handleLanguageChange(
-                      e.target.value,
+                      e.target.value
                     )
                   }
                   className="w-full border border-slate-200 p-3 rounded-xl outline-none bg-white text-base font-medium"
@@ -535,7 +659,7 @@ export default function PatientSignup() {
                         }
                         )
                       </option>
-                    ),
+                    )
                   )}
 
                 </select>
@@ -587,18 +711,18 @@ export default function PatientSignup() {
                         mobile
                       }
                       onChange={(
-                        e,
+                        e
                       ) =>
                         setMobile(
                           e.target.value
                             .replace(
                               /\D/g,
-                              "",
+                              ""
                             )
                             .slice(
                               0,
-                              10,
-                            ),
+                              10
+                            )
                         )
                       }
                       placeholder={
@@ -656,20 +780,22 @@ export default function PatientSignup() {
                       inputMode="numeric"
                       pattern="[0-9]*"
                       maxLength="6"
-                      value={otp}
+                      value={
+                        otp
+                      }
                       onChange={(
-                        e,
+                        e
                       ) =>
                         setOtp(
                           e.target.value
                             .replace(
                               /\D/g,
-                              "",
+                              ""
                             )
                             .slice(
                               0,
-                              6,
-                            ),
+                              6
+                            )
                         )
                       }
                       placeholder={
@@ -681,7 +807,10 @@ export default function PatientSignup() {
 
                     <button
                       type="submit"
-                      className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-semibold py-3 px-4 rounded-xl shadow-md transition"
+                      disabled={
+                        loading
+                      }
+                      className="w-full bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white font-semibold py-3 px-4 rounded-xl shadow-md transition"
                     >
                       {
                         t.verifyContinue
@@ -765,7 +894,8 @@ export default function PatientSignup() {
                       onChange={(e) =>
                         setFormData({
                           ...formData,
-                          dob: e.target.value,
+                          dob:
+                            e.target.value,
                         })
                       }
                       className="border border-slate-200 p-3 w-full rounded-xl outline-none"
@@ -865,10 +995,11 @@ export default function PatientSignup() {
                         checked={
                           abdmConsent
                         }
-                        onChange={(e) =>
+                        onChange={(
+                          e
+                        ) =>
                           setAbdmConsent(
-                            e.target
-                              .checked,
+                            e.target.checked
                           )
                         }
                         className="mt-1 h-4 w-4 accent-emerald-600 cursor-pointer"

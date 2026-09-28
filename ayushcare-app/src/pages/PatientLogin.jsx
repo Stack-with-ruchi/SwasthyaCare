@@ -11,7 +11,7 @@ const ENGLISH_LOGIN_TEXT = {
   abhaLogin: "ABHA Login",
   selectPreferredLanguage: "Select Preferred Language",
   enterAbhaId: "Enter ABHA ID",
-  abhaPlaceholder: "e.g. 91-4452-8819-2041",
+  abhaPlaceholder: "e.g. 91-2222-4444-888824",
   sendingOtp: "SENDING OTP...",
   getOtp: "GET OTP",
   otpSentForAbhaId: "OTP sent for ABHA ID",
@@ -27,43 +27,76 @@ export default function PatientLogin() {
   const navigate = useNavigate();
   const { language, setLanguage } = useLanguage();
 
-  // Get saved language
+  // =====================================================
+  // GET SAVED LANGUAGE
+  // =====================================================
+
   const getSavedLanguageCode = () => {
     try {
-      const savedLanguage = localStorage.getItem("preferred_language");
+      const savedLanguage =
+        localStorage.getItem("preferred_language");
 
-      if (!savedLanguage) return "en";
+      if (!savedLanguage) {
+        return "en";
+      }
 
-      // If somehow an object was stored
-      const parsedLanguage = JSON.parse(savedLanguage);
+      const parsedLanguage =
+        JSON.parse(savedLanguage);
 
       if (parsedLanguage?.code) {
         return parsedLanguage.code;
       }
     } catch {
-      // Normal case: preferred_language is simply "en", "hi", etc.
+      // preferred_language may already be a simple string
     }
 
-    return localStorage.getItem("preferred_language") || "en";
+    return (
+      localStorage.getItem("preferred_language") ||
+      "en"
+    );
   };
 
+  // =====================================================
+  // STATES
+  // =====================================================
+
   const [step, setStep] = useState(1);
-  const [identifier, setIdentifier] = useState("");
-  const [otp, setOtp] = useState("");
 
-  const [languages, setLanguages] = useState([]);
+  const [identifier, setIdentifier] =
+    useState("");
 
-  const [selectedLanguageCode, setSelectedLanguageCode] = useState(
-    language?.code || getSavedLanguageCode()
+  const [otp, setOtp] =
+    useState("");
+
+  const [languages, setLanguages] =
+    useState([]);
+
+  const [
+    selectedLanguageCode,
+    setSelectedLanguageCode,
+  ] = useState(
+    language?.code ||
+      getSavedLanguageCode()
   );
 
-  const [loading, setLoading] = useState(false);
-  const [errorMessage, setErrorMessage] = useState("");
+  const [loading, setLoading] =
+    useState(false);
 
-  // Translation
-  const { t } = useTranslation(ENGLISH_LOGIN_TEXT);
+  const [errorMessage, setErrorMessage] =
+    useState("");
 
-  // Fetch supported languages
+  // =====================================================
+  // TRANSLATION
+  // =====================================================
+
+  const { t } = useTranslation(
+    ENGLISH_LOGIN_TEXT
+  );
+
+  // =====================================================
+  // FETCH SUPPORTED LANGUAGES
+  // =====================================================
+
   useEffect(() => {
     apiRequest("/languages/list")
       .then((data) => {
@@ -72,210 +105,354 @@ export default function PatientLogin() {
             ? data.languages
             : ALL_INDIAN_LANGUAGES;
 
-        setLanguages(availableLanguages);
+        setLanguages(
+          availableLanguages
+        );
 
-        // Find language saved during Signup
-        const savedCode = language?.code || getSavedLanguageCode();
+        const savedCode =
+          language?.code ||
+          getSavedLanguageCode();
 
         const savedLanguageData =
           availableLanguages.find(
-            (lang) => lang.code === savedCode
+            (lang) =>
+              lang.code === savedCode
           ) ||
           ALL_INDIAN_LANGUAGES.find(
-            (lang) => lang.code === savedCode
+            (lang) =>
+              lang.code === savedCode
           ) ||
           availableLanguages.find(
-            (lang) => lang.code === "en"
+            (lang) =>
+              lang.code === "en"
           ) || {
             code: "en",
             name: "English",
             nativeName: "English",
           };
 
-        setSelectedLanguageCode(savedLanguageData.code);
+        setSelectedLanguageCode(
+          savedLanguageData.code
+        );
 
-        // Set global language
-        setLanguage(savedLanguageData);
+        setLanguage(
+          savedLanguageData
+        );
 
-        // Save language code
         localStorage.setItem(
           "preferred_language",
           savedLanguageData.code
         );
+
+        localStorage.setItem(
+          "selectedLanguage",
+          JSON.stringify(
+            savedLanguageData
+          )
+        );
       })
-      .catch(() => {
-        const fallbackLanguages = ALL_INDIAN_LANGUAGES;
+      .catch((error) => {
+        console.error(
+          "Failed to load languages:",
+          error
+        );
 
-        setLanguages(fallbackLanguages);
+        const fallbackLanguages =
+          ALL_INDIAN_LANGUAGES;
 
-        const savedCode = getSavedLanguageCode();
+        setLanguages(
+          fallbackLanguages
+        );
+
+        const savedCode =
+          getSavedLanguageCode();
 
         const savedLanguageData =
           fallbackLanguages.find(
-            (lang) => lang.code === savedCode
+            (lang) =>
+              lang.code === savedCode
           ) ||
           fallbackLanguages.find(
-            (lang) => lang.code === "en"
+            (lang) =>
+              lang.code === "en"
           ) || {
             code: "en",
             name: "English",
             nativeName: "English",
           };
 
-        setSelectedLanguageCode(savedLanguageData.code);
-        setLanguage(savedLanguageData);
+        setSelectedLanguageCode(
+          savedLanguageData.code
+        );
+
+        setLanguage(
+          savedLanguageData
+        );
 
         localStorage.setItem(
           "preferred_language",
           savedLanguageData.code
+        );
+
+        localStorage.setItem(
+          "selectedLanguage",
+          JSON.stringify(
+            savedLanguageData
+          )
         );
       });
   }, []);
 
-  // Handle manual language change
-  const handleLanguageChange = (languageCode) => {
+  // =====================================================
+  // HANDLE LANGUAGE CHANGE
+  // =====================================================
+
+  const handleLanguageChange = (
+    languageCode
+  ) => {
     const selectedLanguageData =
       languages.find(
-        (lang) => lang.code === languageCode
+        (lang) =>
+          lang.code === languageCode
       ) ||
       ALL_INDIAN_LANGUAGES.find(
-        (lang) => lang.code === languageCode
+        (lang) =>
+          lang.code === languageCode
       ) || {
         code: "en",
         name: "English",
         nativeName: "English",
       };
 
-    setSelectedLanguageCode(selectedLanguageData.code);
+    setSelectedLanguageCode(
+      selectedLanguageData.code
+    );
 
-    // Update global language
-    setLanguage(selectedLanguageData);
+    setLanguage(
+      selectedLanguageData
+    );
 
-    // Save language
     localStorage.setItem(
       "preferred_language",
       selectedLanguageData.code
     );
+
+    localStorage.setItem(
+      "selectedLanguage",
+      JSON.stringify(
+        selectedLanguageData
+      )
+    );
   };
 
-  // Get selected language details
-  const selectedLanguageData = useMemo(() => {
-    return (
-      languages.find(
-        (lang) => lang.code === selectedLanguageCode
-      ) ||
-      ALL_INDIAN_LANGUAGES.find(
-        (lang) => lang.code === selectedLanguageCode
-      ) || {
-        code: "en",
-        name: "English",
-        nativeName: "English",
-      }
-    );
-  }, [languages, selectedLanguageCode]);
+  // =====================================================
+  // GET SELECTED LANGUAGE DETAILS
+  // =====================================================
 
-  // Normalize patient identifier
-  const normalizePatientIdentifier = (value) => {
-    const trimmedValue = value.trim();
+  const selectedLanguageData =
+    useMemo(() => {
+      return (
+        languages.find(
+          (lang) =>
+            lang.code ===
+            selectedLanguageCode
+        ) ||
+        ALL_INDIAN_LANGUAGES.find(
+          (lang) =>
+            lang.code ===
+            selectedLanguageCode
+        ) || {
+          code: "en",
+          name: "English",
+          nativeName: "English",
+        }
+      );
+    }, [
+      languages,
+      selectedLanguageCode,
+    ]);
+
+  // =====================================================
+  // NORMALIZE ABHA ID
+  //
+  // IMPORTANT:
+  // We keep hyphens because your MongoDB currently
+  // stores the ABHA like:
+  //
+  // 91-2222-4444-888824
+  //
+  // We only remove extra spaces from the beginning
+  // and end.
+  // =====================================================
+
+  const normalizePatientIdentifier = (
+    value
+  ) => {
+    const trimmedValue =
+      String(value || "").trim();
 
     if (!trimmedValue) {
       return "";
     }
 
-    const digitsOnly = trimmedValue.replace(/\D/g, "");
-
-    if (
-      /^\+?\d{10}$/.test(trimmedValue) ||
-      /^\d{10}$/.test(digitsOnly)
-    ) {
-      return digitsOnly;
-    }
-
-    return trimmedValue;
+    // Remove accidental spaces around the ABHA,
+    // but keep the hyphens.
+    return trimmedValue.replace(
+      /\s+/g,
+      ""
+    );
   };
 
-  // STEP 1: Request OTP
+  // =====================================================
+  // STEP 1: REQUEST OTP
+  // =====================================================
+
   const handleGetOtp = async (e) => {
     e.preventDefault();
 
     setErrorMessage("");
 
     const normalizedIdentifier =
-      normalizePatientIdentifier(identifier);
+      normalizePatientIdentifier(
+        identifier
+      );
 
     if (!normalizedIdentifier) {
-      setErrorMessage(t.invalidIdentifier);
+      setErrorMessage(
+        t.invalidIdentifier
+      );
       return;
     }
 
     try {
       setLoading(true);
 
-      const data = await apiRequest(
-        "/auth/patient/send-otp",
-        {
-          method: "POST",
-          body: JSON.stringify({
-            identifier: normalizedIdentifier,
-          }),
-        }
-      );
+      const data =
+        await apiRequest(
+          "/auth/patient/send-otp",
+          {
+            method: "POST",
 
-      // Demo OTP
-      if (data.demoOtp) {
-        alert("DEMO OTP: " + data.demoOtp);
+            body: JSON.stringify({
+              identifier:
+                normalizedIdentifier,
+            }),
+          }
+        );
+
+      // =================================================
+      // DEMO OTP
+      // =================================================
+
+      if (data?.demoOtp) {
+        alert(
+          "DEMO OTP: " +
+            data.demoOtp
+        );
       }
 
       setStep(2);
     } catch (err) {
+      console.error(
+        "Send OTP failed:",
+        err
+      );
+
       setErrorMessage(
-        err.message || "Failed to send OTP."
+        err.message ||
+          "Failed to send OTP."
       );
     } finally {
       setLoading(false);
     }
   };
 
-  // STEP 2: Verify OTP
-  const handleVerifyOtp = async (e) => {
+  // =====================================================
+  // STEP 2: VERIFY OTP
+  // =====================================================
+
+  const handleVerifyOtp = async (
+    e
+  ) => {
     e.preventDefault();
 
     setErrorMessage("");
 
-    const normalizedOtp = otp
-      .trim()
-      .replace(/\D/g, "");
+    const normalizedOtp =
+      otp
+        .trim()
+        .replace(/\D/g, "");
 
     if (!normalizedOtp) {
-      setErrorMessage("Please enter the 6-digit OTP.");
+      setErrorMessage(
+        "Please enter the 6-digit OTP."
+      );
+      return;
+    }
+
+    if (
+      normalizedOtp.length !== 6
+    ) {
+      setErrorMessage(
+        "Please enter a valid 6-digit OTP."
+      );
       return;
     }
 
     try {
       setLoading(true);
 
-      const data = await apiRequest(
-        "/auth/patient/verify-otp",
-        {
-          method: "POST",
+      // =================================================
+      // NORMALIZE ABHA
+      // =================================================
 
-          body: JSON.stringify({
-            identifier:
-              normalizePatientIdentifier(identifier),
+      const normalizedIdentifier =
+        normalizePatientIdentifier(
+          identifier
+        );
 
-            otp: normalizedOtp,
-          }),
-        }
-      );
+      if (!normalizedIdentifier) {
+        throw new Error(
+          t.invalidIdentifier
+        );
+      }
 
-      // Make sure backend returned login data
-      if (!data.token || !data.patient) {
+      // =================================================
+      // VERIFY OTP
+      // =================================================
+
+      const data =
+        await apiRequest(
+          "/auth/patient/verify-otp",
+          {
+            method: "POST",
+
+            body: JSON.stringify({
+              identifier:
+                normalizedIdentifier,
+
+              otp: normalizedOtp,
+            }),
+          }
+        );
+
+      // =================================================
+      // CHECK LOGIN RESPONSE
+      // =================================================
+
+      if (
+        !data?.token ||
+        !data?.patient
+      ) {
         throw new Error(
           "Login successful, but patient session data was not received."
         );
       }
 
-      // Save patient authentication
+      // =================================================
+      // SAVE PATIENT AUTHENTICATION
+      // =================================================
+
       localStorage.setItem(
         "patient_token",
         data.token
@@ -283,10 +460,32 @@ export default function PatientLogin() {
 
       localStorage.setItem(
         "patient_user",
-        JSON.stringify(data.patient)
+        JSON.stringify(
+          data.patient
+        )
       );
 
-      // Save selected language locally
+      // =================================================
+      // SAVE PATIENT ID
+      // =================================================
+
+      const patientId =
+        data.patient._id ||
+        data.patient.id ||
+        data.patient.patientId ||
+        "";
+
+      if (patientId) {
+        localStorage.setItem(
+          "patient_id",
+          patientId.toString()
+        );
+      }
+
+      // =================================================
+      // SAVE SELECTED LANGUAGE
+      // =================================================
+
       localStorage.setItem(
         "preferred_language",
         selectedLanguageData.code
@@ -294,41 +493,71 @@ export default function PatientLogin() {
 
       localStorage.setItem(
         "selectedLanguage",
-        JSON.stringify(selectedLanguageData)
+        JSON.stringify(
+          selectedLanguageData
+        )
       );
 
-      // Update global language
-      setLanguage(selectedLanguageData);
+      // =================================================
+      // UPDATE GLOBAL LANGUAGE
+      // =================================================
 
-      // Sync language with backend
-      await apiRequest(
-        "/auth/patient/language",
+      setLanguage(
+        selectedLanguageData
+      );
+
+      // =================================================
+      // SYNC LANGUAGE WITH BACKEND
+      //
+      // Language sync failure will NOT
+      // stop patient login.
+      // =================================================
+
+      try {
+        await apiRequest(
+          "/auth/patient/language",
+          {
+            method: "PUT",
+
+            headers: {
+              Authorization:
+                `Bearer ${data.token}`,
+            },
+
+            body: JSON.stringify({
+              languageCode:
+                selectedLanguageData.code,
+
+              languageName:
+                selectedLanguageData.name,
+            }),
+          }
+        );
+      } catch (
+        languageError
+      ) {
+        console.warn(
+          "Patient language sync failed. Continuing login.",
+          languageError
+        );
+      }
+
+      // =================================================
+      // LOGIN COMPLETE
+      // OPEN PATIENT DASHBOARD
+      // =================================================
+
+      navigate(
+        "/patient/dashboard",
         {
-          method: "PUT",
-
-          headers: {
-            Authorization: `Bearer ${data.token}`,
-          },
-
-          body: JSON.stringify({
-            languageCode:
-              selectedLanguageData.code,
-
-            languageName:
-              selectedLanguageData.name,
-          }),
+          replace: true,
         }
       );
-
-      // -----------------------------------------
-      // LOGIN COMPLETE
-      // Automatically open Patient Dashboard
-      // -----------------------------------------
-      navigate("/patient/dashboard", {
-        replace: true,
-      });
     } catch (err) {
-      console.error("Login failed:", err);
+      console.error(
+        "Patient login failed:",
+        err
+      );
 
       setErrorMessage(
         err.message ||
@@ -339,28 +568,45 @@ export default function PatientLogin() {
     }
   };
 
+  // =====================================================
+  // UI
+  // =====================================================
+
   return (
     <div className="min-h-screen bg-[radial-gradient(circle_at_top,_#e0f2fe,_#f8fafc_35%,_#ecfdf5_100%)] text-slate-800 pt-20 pb-12">
+
       <Navbar />
 
       <main className="flex items-center justify-center px-4 py-10">
+
         <div className="w-full max-w-md">
 
           <div className="bg-white/90 backdrop-blur-xl border border-white/80 rounded-[28px] shadow-[0_24px_70px_rgba(15,23,42,0.12)] p-6 md:p-8">
 
-            {/* BACK BUTTON */}
+            {/* =================================================
+                BACK BUTTON
+            ================================================= */}
+
             <div className="mb-4">
+
               <button
                 type="button"
-                onClick={() => navigate("/")}
+                onClick={() =>
+                  navigate("/")
+                }
                 className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-medium text-slate-700 transition hover:border-emerald-300 hover:bg-emerald-50 hover:text-emerald-700"
               >
                 ← Back
               </button>
+
             </div>
 
-            {/* HEADER */}
+            {/* =================================================
+                HEADER
+            ================================================= */}
+
             <div className="text-center mb-6">
+
               <span className="inline-block text-xs font-semibold uppercase tracking-widest bg-emerald-100 text-emerald-800 px-3 py-1 rounded-full">
                 {t.patientPortal}
               </span>
@@ -368,32 +614,45 @@ export default function PatientLogin() {
               <h1 className="mt-3 text-2xl md:text-3xl font-black text-slate-800">
                 {t.abhaLogin}
               </h1>
+
             </div>
 
-            {/* ERROR MESSAGE */}
+            {/* =================================================
+                ERROR MESSAGE
+            ================================================= */}
+
             {errorMessage && (
               <div className="mb-4 p-3 bg-red-50 border border-red-200 text-red-600 rounded-xl text-xs text-center font-medium">
                 {errorMessage}
               </div>
             )}
 
-            {/* =========================================
+            {/* =================================================
                 STEP 1: LANGUAGE + ABHA ID
-            ========================================= */}
+            ================================================= */}
+
             {step === 1 && (
               <form
-                onSubmit={handleGetOtp}
+                onSubmit={
+                  handleGetOtp
+                }
                 className="space-y-4"
               >
 
                 {/* LANGUAGE */}
+
                 <div>
+
                   <label className="block text-sm font-medium text-slate-700 mb-2">
-                    {t.selectPreferredLanguage}
+                    {
+                      t.selectPreferredLanguage
+                    }
                   </label>
 
                   <select
-                    value={selectedLanguageCode}
+                    value={
+                      selectedLanguageCode
+                    }
                     onChange={(e) =>
                       handleLanguageChange(
                         e.target.value
@@ -401,19 +660,37 @@ export default function PatientLogin() {
                     }
                     className="border border-slate-200 focus:border-emerald-500 p-3 w-full rounded-xl outline-none bg-white font-medium"
                   >
-                    {languages.map((lang) => (
-                      <option
-                        key={lang.code}
-                        value={lang.code}
-                      >
-                        {lang.nativeName} ({lang.name})
-                      </option>
-                    ))}
+
+                    {languages.map(
+                      (lang) => (
+                        <option
+                          key={
+                            lang.code
+                          }
+                          value={
+                            lang.code
+                          }
+                        >
+                          {
+                            lang.nativeName
+                          }{" "}
+                          (
+                          {
+                            lang.name
+                          }
+                          )
+                        </option>
+                      )
+                    )}
+
                   </select>
+
                 </div>
 
                 {/* ABHA ID */}
+
                 <div>
+
                   <label className="block text-sm font-medium text-slate-700 mb-2">
                     {t.enterAbhaId}
                   </label>
@@ -421,50 +698,73 @@ export default function PatientLogin() {
                   <input
                     type="text"
                     required
-                    value={identifier}
-                    onChange={(e) =>
+                    value={
+                      identifier
+                    }
+                    onChange={(
+                      e
+                    ) =>
                       setIdentifier(
                         e.target.value
                       )
                     }
-                    placeholder={t.abhaPlaceholder}
+                    placeholder={
+                      t.abhaPlaceholder
+                    }
                     className="border border-slate-200 focus:border-emerald-500 p-3 w-full rounded-xl outline-none transition"
                   />
+
                 </div>
 
                 {/* GET OTP */}
+
                 <button
                   type="submit"
-                  disabled={loading}
+                  disabled={
+                    loading
+                  }
                   className="w-full bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white font-semibold py-3 px-4 rounded-xl shadow-md transition"
                 >
                   {loading
                     ? t.sendingOtp
                     : t.getOtp}
                 </button>
+
               </form>
             )}
 
-            {/* =========================================
+            {/* =================================================
                 STEP 2: OTP
-            ========================================= */}
+            ================================================= */}
+
             {step === 2 && (
               <form
-                onSubmit={handleVerifyOtp}
+                onSubmit={
+                  handleVerifyOtp
+                }
                 className="space-y-4"
               >
 
                 <div className="text-center mb-2">
+
                   <p className="text-xs text-slate-500">
-                    {t.otpSentForAbhaId}{" "}
+
+                    {
+                      t.otpSentForAbhaId
+                    }{" "}
+
                     <strong>
                       {identifier}
                     </strong>
+
                   </p>
+
                 </div>
 
                 {/* OTP INPUT */}
+
                 <div>
+
                   <label className="block text-sm font-medium text-slate-700 mb-2">
                     {t.enterOtp}
                   </label>
@@ -474,36 +774,56 @@ export default function PatientLogin() {
                     inputMode="numeric"
                     pattern="[0-9]*"
                     maxLength="6"
-                    value={otp}
-                    onChange={(e) =>
+                    value={
+                      otp
+                    }
+                    onChange={(
+                      e
+                    ) =>
                       setOtp(
                         e.target.value
-                          .replace(/\D/g, "")
-                          .slice(0, 6)
+                          .replace(
+                            /\D/g,
+                            ""
+                          )
+                          .slice(
+                            0,
+                            6
+                          )
                       )
                     }
-                    placeholder={t.otpPlaceholder}
+                    placeholder={
+                      t.otpPlaceholder
+                    }
                     className="border border-slate-200 focus:border-emerald-500 p-3 w-full text-center text-2xl font-mono tracking-widest rounded-xl outline-none"
                     required
                   />
+
                 </div>
 
-                {/* VERIFY / CONTINUE */}
+                {/* CONTINUE */}
+
                 <button
                   type="submit"
-                  disabled={loading}
+                  disabled={
+                    loading
+                  }
                   className="w-full bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white font-semibold py-3 px-4 rounded-xl shadow-md transition"
                 >
                   {loading
                     ? t.verifying
                     : t.continue}
                 </button>
+
               </form>
             )}
 
           </div>
+
         </div>
+
       </main>
+
     </div>
   );
 }
