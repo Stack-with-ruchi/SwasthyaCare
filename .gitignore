@@ -1,26 +1,23 @@
-ayushcare-app/node_modules/
-ayushcare-app/dist/
-
-ayush-backend/node_modules/
-ayush-backend/.env
-
-
-
+# Dependencies
 node_modules/
-dist/
-build/
 
-
-.vscode/
-
-
-node_modules/
+# Environment variables
 .env
 .env.*
-!.env.example
 
+# Frontend build
 dist/
 build/
 
-uploads/
+# Backend uploads
+ayush-backend/uploads/
+
+# Logs
 *.log
+
+# Temporary files
+tmp/
+temp/
+
+# VS Code
+.vscode/

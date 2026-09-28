@@ -19,9 +19,6 @@ const ENGLISH_LOGIN_TEXT = {
   otpPlaceholder: "6-Digit OTP",
   verifying: "VERIFYING...",
   continue: "CONTINUE",
-  successful: "Login Successful",
-  languagePreferenceSuccess: "Language preference set successfully.",
-  accessHealthDashboard: "Access Health Dashboard",
   invalidIdentifier: "Please enter your ABHA ID.",
   failedToLoadLanguages: "Failed to load languages.",
 };
@@ -30,7 +27,7 @@ export default function PatientLogin() {
   const navigate = useNavigate();
   const { language, setLanguage } = useLanguage();
 
-  // Get the saved language from Signup/Login
+  // Get saved language
   const getSavedLanguageCode = () => {
     try {
       const savedLanguage = localStorage.getItem("preferred_language");
@@ -63,7 +60,7 @@ export default function PatientLogin() {
   const [loading, setLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState("");
 
-  // Translation uses the global language state
+  // Translation
   const { t } = useTranslation(ENGLISH_LOGIN_TEXT);
 
   // Fetch supported languages
@@ -77,9 +74,8 @@ export default function PatientLogin() {
 
         setLanguages(availableLanguages);
 
-        // Find the language saved during Signup
-        const savedCode =
-          language?.code || getSavedLanguageCode();
+        // Find language saved during Signup
+        const savedCode = language?.code || getSavedLanguageCode();
 
         const savedLanguageData =
           availableLanguages.find(
@@ -98,10 +94,10 @@ export default function PatientLogin() {
 
         setSelectedLanguageCode(savedLanguageData.code);
 
-        // Set global language so Login UI translates immediately
+        // Set global language
         setLanguage(savedLanguageData);
 
-        // Keep language saved
+        // Save language code
         localStorage.setItem(
           "preferred_language",
           savedLanguageData.code
@@ -136,7 +132,7 @@ export default function PatientLogin() {
       });
   }, []);
 
-  // Handle manual language change on Login page
+  // Handle manual language change
   const handleLanguageChange = (languageCode) => {
     const selectedLanguageData =
       languages.find(
@@ -155,7 +151,7 @@ export default function PatientLogin() {
     // Update global language
     setLanguage(selectedLanguageData);
 
-    // Save only the language code everywhere
+    // Save language
     localStorage.setItem(
       "preferred_language",
       selectedLanguageData.code
@@ -178,7 +174,7 @@ export default function PatientLogin() {
     );
   }, [languages, selectedLanguageCode]);
 
-  // STEP 1: Request OTP
+  // Normalize patient identifier
   const normalizePatientIdentifier = (value) => {
     const trimmedValue = value.trim();
 
@@ -188,19 +184,24 @@ export default function PatientLogin() {
 
     const digitsOnly = trimmedValue.replace(/\D/g, "");
 
-    if (/^\+?\d{10}$/.test(trimmedValue) || /^\d{10}$/.test(digitsOnly)) {
+    if (
+      /^\+?\d{10}$/.test(trimmedValue) ||
+      /^\d{10}$/.test(digitsOnly)
+    ) {
       return digitsOnly;
     }
 
     return trimmedValue;
   };
 
+  // STEP 1: Request OTP
   const handleGetOtp = async (e) => {
     e.preventDefault();
 
     setErrorMessage("");
 
-    const normalizedIdentifier = normalizePatientIdentifier(identifier);
+    const normalizedIdentifier =
+      normalizePatientIdentifier(identifier);
 
     if (!normalizedIdentifier) {
       setErrorMessage(t.invalidIdentifier);
@@ -220,6 +221,7 @@ export default function PatientLogin() {
         }
       );
 
+      // Demo OTP
       if (data.demoOtp) {
         alert("DEMO OTP: " + data.demoOtp);
       }
@@ -240,7 +242,9 @@ export default function PatientLogin() {
 
     setErrorMessage("");
 
-    const normalizedOtp = otp.trim().replace(/\D/g, "");
+    const normalizedOtp = otp
+      .trim()
+      .replace(/\D/g, "");
 
     if (!normalizedOtp) {
       setErrorMessage("Please enter the 6-digit OTP.");
@@ -254,14 +258,24 @@ export default function PatientLogin() {
         "/auth/patient/verify-otp",
         {
           method: "POST",
+
           body: JSON.stringify({
-            identifier: normalizePatientIdentifier(identifier),
+            identifier:
+              normalizePatientIdentifier(identifier),
+
             otp: normalizedOtp,
           }),
         }
       );
 
-      // Save patient login details
+      // Make sure backend returned login data
+      if (!data.token || !data.patient) {
+        throw new Error(
+          "Login successful, but patient session data was not received."
+        );
+      }
+
+      // Save patient authentication
       localStorage.setItem(
         "patient_token",
         data.token
@@ -297,18 +311,28 @@ export default function PatientLogin() {
           },
 
           body: JSON.stringify({
-            languageCode: selectedLanguageData.code,
-            languageName: selectedLanguageData.name,
+            languageCode:
+              selectedLanguageData.code,
+
+            languageName:
+              selectedLanguageData.name,
           }),
         }
       );
 
-      setStep(3);
+      // -----------------------------------------
+      // LOGIN COMPLETE
+      // Automatically open Patient Dashboard
+      // -----------------------------------------
+      navigate("/patient/dashboard", {
+        replace: true,
+      });
     } catch (err) {
       console.error("Login failed:", err);
 
       setErrorMessage(
-        err.message || "Login verification failed."
+        err.message ||
+          "Login verification failed."
       );
     } finally {
       setLoading(false);
@@ -321,7 +345,10 @@ export default function PatientLogin() {
 
       <main className="flex items-center justify-center px-4 py-10">
         <div className="w-full max-w-md">
+
           <div className="bg-white/90 backdrop-blur-xl border border-white/80 rounded-[28px] shadow-[0_24px_70px_rgba(15,23,42,0.12)] p-6 md:p-8">
+
+            {/* BACK BUTTON */}
             <div className="mb-4">
               <button
                 type="button"
@@ -343,19 +370,22 @@ export default function PatientLogin() {
               </h1>
             </div>
 
-            {/* ERROR */}
+            {/* ERROR MESSAGE */}
             {errorMessage && (
               <div className="mb-4 p-3 bg-red-50 border border-red-200 text-red-600 rounded-xl text-xs text-center font-medium">
                 {errorMessage}
               </div>
             )}
 
-            {/* STEP 1: LANGUAGE + ABHA */}
+            {/* =========================================
+                STEP 1: LANGUAGE + ABHA ID
+            ========================================= */}
             {step === 1 && (
               <form
                 onSubmit={handleGetOtp}
                 className="space-y-4"
               >
+
                 {/* LANGUAGE */}
                 <div>
                   <label className="block text-sm font-medium text-slate-700 mb-2">
@@ -415,12 +445,15 @@ export default function PatientLogin() {
               </form>
             )}
 
-            {/* STEP 2: OTP */}
+            {/* =========================================
+                STEP 2: OTP
+            ========================================= */}
             {step === 2 && (
               <form
                 onSubmit={handleVerifyOtp}
                 className="space-y-4"
               >
+
                 <div className="text-center mb-2">
                   <p className="text-xs text-slate-500">
                     {t.otpSentForAbhaId}{" "}
@@ -430,6 +463,7 @@ export default function PatientLogin() {
                   </p>
                 </div>
 
+                {/* OTP INPUT */}
                 <div>
                   <label className="block text-sm font-medium text-slate-700 mb-2">
                     {t.enterOtp}
@@ -454,6 +488,7 @@ export default function PatientLogin() {
                   />
                 </div>
 
+                {/* VERIFY / CONTINUE */}
                 <button
                   type="submit"
                   disabled={loading}
@@ -464,32 +499,6 @@ export default function PatientLogin() {
                     : t.continue}
                 </button>
               </form>
-            )}
-
-            {/* STEP 3: SUCCESS */}
-            {step === 3 && (
-              <div className="text-center py-4 space-y-4">
-                <div className="mx-auto flex items-center justify-center h-16 w-16 rounded-full bg-emerald-100 text-3xl text-emerald-600">
-                  ✓
-                </div>
-
-                <h2 className="text-2xl font-bold text-slate-800">
-                  {t.successful}
-                </h2>
-
-                <p className="text-sm text-slate-600">
-                  {t.languagePreferenceSuccess}
-                </p>
-
-                <button
-                  onClick={() =>
-                    navigate("/patient/dashboard")
-                  }
-                  className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-semibold py-3 px-4 rounded-xl shadow-md transition"
-                >
-                  {t.accessHealthDashboard}
-                </button>
-              </div>
             )}
 
           </div>

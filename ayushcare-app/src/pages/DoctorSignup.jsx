@@ -127,39 +127,109 @@ export default function DoctorSignup() {
       setIsSubmitting(true);
       setSubmitError("");
 
-      await apiRequest("/auth/doctor/signup", {
-        method: "POST",
+      const signupResponse = await apiRequest(
+        "/auth/doctor/signup",
+        {
+          method: "POST",
 
-        body: JSON.stringify({
-          // Basic details
-          fullName: details.fullname.trim(),
-          age: Number(details.age),
-          gender: details.gender,
+          body: JSON.stringify({
+            // Basic details
+            fullName: details.fullname.trim(),
+            age: Number(details.age),
+            gender: details.gender,
 
-          // Professional details
-          degree: details.degree.trim(),
-          specialty: details.specialty.trim(),
-          regNumber: details.regNumber.trim(),
-          registrationAuthority:
-            details.registrationAuthority.trim(),
+            // Professional details
+            degree: details.degree.trim(),
+            specialty: details.specialty.trim(),
+            regNumber: details.regNumber.trim(),
+            registrationAuthority:
+              details.registrationAuthority.trim(),
 
-          // Hospital + Department
-          hospitalClinic:
-            details.hospitalClinic.trim(),
-          department:
-            details.department.trim(),
+            // Hospital + Department
+            hospitalClinic:
+              details.hospitalClinic.trim(),
 
-          // Login details
-          password,
+            department:
+              details.department.trim(),
 
-          // Contact
-          mobile: contact.trim(),
-        }),
+            // Login details
+            password,
+
+            // Contact
+            mobile: contact.trim(),
+          }),
+        }
+      );
+
+      // ========================================
+      // DOCTOR SIGNUP SUCCESS
+      // ========================================
+
+      /*
+        The backend returns the newly created doctor
+        details.
+
+        We save a local doctor session so that the
+        dashboard knows which doctor is logged in.
+      */
+
+      const doctor = signupResponse.doctor;
+
+      if (!doctor) {
+        throw new Error(
+          "Doctor account was created, but doctor details were not returned."
+        );
+      }
+
+      // Create doctor session
+      const doctorSession = {
+        id: doctor.id || signupResponse.doctorId,
+        role: "doctor",
+        fullName: doctor.fullName,
+        mobile: doctor.mobile,
+        email: doctor.email || "",
+        specialization:
+          doctor.specialization ||
+          doctor.specialty ||
+          "",
+        degree: doctor.degree || "",
+        regNumber: doctor.regNumber || "",
+        regAuthority:
+          doctor.regAuthority ||
+          doctor.registrationAuthority ||
+          "",
+        hospitalClinic:
+          doctor.hospitalClinic || "",
+        department:
+          doctor.department || "",
+        loginTime: new Date().toISOString(),
+      };
+
+      // Save doctor session
+      localStorage.setItem(
+        "ayush_doctor_session",
+        JSON.stringify(doctorSession)
+      );
+
+      // Also save doctor details separately
+      localStorage.setItem(
+        "doctor_user",
+        JSON.stringify(doctor)
+      );
+
+      // ========================================
+      // AUTOMATICALLY OPEN DOCTOR DASHBOARD
+      // ========================================
+
+      navigate("/doctor/dashboard", {
+        replace: true,
       });
 
-      setStep(6);
     } catch (error) {
-      console.error("Doctor signup error:", error);
+      console.error(
+        "Doctor signup error:",
+        error
+      );
 
       setSubmitError(
         error.message ||
@@ -191,6 +261,7 @@ export default function DoctorSignup() {
         <div className="w-full max-w-lg">
 
           <div className="bg-white/90 backdrop-blur-xl border border-white/80 rounded-[28px] shadow-[0_24px_70px_rgba(15,23,42,0.12)] p-6 md:p-8">
+
             <div className="mb-4">
               <button
                 type="button"
@@ -697,37 +768,6 @@ export default function DoctorSignup() {
                 </button>
 
               </form>
-            )}
-
-            {/* ========================================
-                STEP 6 — SUCCESS
-            ======================================== */}
-
-            {step === 6 && (
-              <div className="text-center py-4 space-y-4">
-
-                <div className="mx-auto flex items-center justify-center h-16 w-16 rounded-full bg-emerald-100 text-3xl text-emerald-600">
-                  ✓
-                </div>
-
-                <h2 className="text-2xl font-bold text-slate-800">
-                  Registration Complete!
-                </h2>
-
-                <p className="text-sm text-slate-600">
-                  Your doctor profile has been generated successfully.
-                </p>
-
-                <button
-                  onClick={() =>
-                    navigate("/doctor/login")
-                  }
-                  className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-semibold py-3 px-4 rounded-xl shadow-md transition"
-                >
-                  Go to Doctor Login
-                </button>
-
-              </div>
             )}
 
           </div>

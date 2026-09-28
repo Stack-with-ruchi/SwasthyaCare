@@ -8,7 +8,8 @@ import TodayAppointments from "../components/Doctor/TodayAppointments";
 import QuickActions from "../components/Doctor/QuickActions";
 import PatientsPage from "../components/Doctor/PatientsPage";
 
-const API_URL = "http://localhost:5000/api";
+const API_URL =
+  import.meta.env.VITE_API_URL;
 
 export default function DoctorDashboard() {
   const [doctor, setDoctor] = useState(null);
@@ -30,14 +31,24 @@ export default function DoctorDashboard() {
   const [error, setError] = useState("");
 
   // ========================================
-  // DOCTOR SESSION
+  // GET DOCTOR SESSION
   // ========================================
 
   const getDoctorSession = () => {
     try {
-      const session = JSON.parse(
-        localStorage.getItem("ayush_doctor_session") || "null"
+      const storedSession = localStorage.getItem(
+        "ayush_doctor_session"
       );
+
+      if (!storedSession) {
+        return null;
+      }
+
+      const session = JSON.parse(storedSession);
+
+      if (!session?.id) {
+        return null;
+      }
 
       return session;
     } catch (error) {
@@ -52,6 +63,11 @@ export default function DoctorDashboard() {
 
   const fetchDoctorAppointments = async (doctorIdentifier) => {
     try {
+      if (!doctorIdentifier) {
+        setTodayAppointments([]);
+        return;
+      }
+
       const response = await fetch(
         `${API_URL}/appointments/doctor-appointments?identifier=${encodeURIComponent(
           doctorIdentifier
@@ -68,15 +84,21 @@ export default function DoctorDashboard() {
 
       if (!response.ok) {
         throw new Error(
-          data?.message || "Failed to fetch doctor appointments."
+          data?.message ||
+            "Failed to fetch doctor appointments."
         );
       }
 
-      setTodayAppointments(data?.appointments || []);
+      setTodayAppointments(
+        data?.appointments || []
+      );
     } catch (error) {
-      console.error("Doctor appointments error:", error);
+      console.error(
+        "Doctor appointments error:",
+        error
+      );
 
-      // Don't break the whole dashboard if appointments fail
+      // Don't break the complete dashboard
       setTodayAppointments([]);
     }
   };
@@ -98,7 +120,7 @@ export default function DoctorDashboard() {
         return;
       }
 
-      // Doctor must select consultation time
+      // Consultation time is required
       if (!appointmentTime) {
         alert(
           "Please select a consultation time before accepting."
@@ -126,7 +148,8 @@ export default function DoctorDashboard() {
 
       if (!response.ok) {
         throw new Error(
-          data?.message || "Failed to accept appointment."
+          data?.message ||
+            "Failed to accept appointment."
         );
       }
 
@@ -135,9 +158,11 @@ export default function DoctorDashboard() {
       );
 
       // Refresh appointments
-      await fetchDoctorAppointments(session.id);
+      await fetchDoctorAppointments(
+        session.id
+      );
 
-      // Refresh dashboard stats and recent cases
+      // Refresh dashboard
       await fetchDashboard();
     } catch (error) {
       console.error(
@@ -156,7 +181,9 @@ export default function DoctorDashboard() {
   // REJECT APPOINTMENT
   // ========================================
 
-  const handleRejectAppointment = async (appointmentId) => {
+  const handleRejectAppointment = async (
+    appointmentId
+  ) => {
     try {
       const session = getDoctorSession();
 
@@ -184,16 +211,19 @@ export default function DoctorDashboard() {
 
       if (!response.ok) {
         throw new Error(
-          data?.message || "Failed to reject appointment."
+          data?.message ||
+            "Failed to reject appointment."
         );
       }
 
       alert("Appointment rejected.");
 
       // Refresh appointments
-      await fetchDoctorAppointments(session.id);
+      await fetchDoctorAppointments(
+        session.id
+      );
 
-      // Refresh dashboard stats and recent cases
+      // Refresh dashboard
       await fetchDashboard();
     } catch (error) {
       console.error(
@@ -219,6 +249,7 @@ export default function DoctorDashboard() {
 
       const session = getDoctorSession();
 
+      // No doctor session
       if (!session?.id) {
         window.location.href = "/doctor/login";
         return;
@@ -227,7 +258,7 @@ export default function DoctorDashboard() {
       const doctorIdentifier = session.id;
 
       // ----------------------------------------
-      // Fetch dashboard data
+      // FETCH DASHBOARD DATA
       // ----------------------------------------
 
       const response = await fetch(
@@ -236,6 +267,7 @@ export default function DoctorDashboard() {
         )}`,
         {
           method: "GET",
+
           headers: {
             "Content-Type": "application/json",
           },
@@ -252,13 +284,13 @@ export default function DoctorDashboard() {
       }
 
       // ----------------------------------------
-      // Doctor
+      // DOCTOR
       // ----------------------------------------
 
       setDoctor(data?.doctor || null);
 
       // ----------------------------------------
-      // Dashboard statistics
+      // DASHBOARD STATISTICS
       // ----------------------------------------
 
       setStats({
@@ -276,7 +308,7 @@ export default function DoctorDashboard() {
       });
 
       // ----------------------------------------
-      // Recent cases
+      // RECENT CASES
       // ----------------------------------------
 
       setRecentCases(
@@ -284,7 +316,7 @@ export default function DoctorDashboard() {
       );
 
       // ----------------------------------------
-      // Doctor appointments
+      // APPOINTMENTS
       // ----------------------------------------
 
       await fetchDoctorAppointments(
@@ -310,6 +342,13 @@ export default function DoctorDashboard() {
   // ========================================
 
   useEffect(() => {
+    const session = getDoctorSession();
+
+    if (!session?.id) {
+      window.location.href = "/doctor/login";
+      return;
+    }
+
     fetchDashboard();
   }, []);
 
@@ -322,8 +361,11 @@ export default function DoctorDashboard() {
       "ayush_doctor_session"
     );
 
-    window.location.href =
-      "/doctor/login";
+    localStorage.removeItem(
+      "doctor_user"
+    );
+
+    window.location.href = "/doctor/login";
   };
 
   // ========================================

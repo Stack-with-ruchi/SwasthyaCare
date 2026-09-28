@@ -13,13 +13,19 @@ export default function DoctorLogin() {
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(false);
 
+  // ========================================
+  // DOCTOR LOGIN
+  // ========================================
+
   const handleLogin = async (e) => {
     e.preventDefault();
 
     setError("");
 
     if (!identifier.trim()) {
-      setError("Please enter your Medical Registration Number, Mobile Number or Email.");
+      setError(
+        "Please enter your Medical Registration Number, Mobile Number or Email."
+      );
       return;
     }
 
@@ -31,52 +37,111 @@ export default function DoctorLogin() {
     try {
       setIsLoading(true);
 
-      const data = await apiRequest("/auth/doctor/login", {
-        method: "POST",
-        body: JSON.stringify({
-          identifier: identifier.trim(),
-          password,
-        }),
-      });
+      const data = await apiRequest(
+        "/auth/doctor/login",
+        {
+          method: "POST",
+
+          body: JSON.stringify({
+            identifier: identifier.trim(),
+            password,
+          }),
+        }
+      );
+
+      // ========================================
+      // CHECK LOGIN RESPONSE
+      // ========================================
 
       if (!data?.success) {
-        throw new Error(data?.message || "Invalid login credentials.");
+        throw new Error(
+          data?.message ||
+            "Invalid login credentials."
+        );
       }
 
       const doctor = data.doctor || {};
 
-      // Save doctor session
+      // ========================================
+      // CREATE DOCTOR SESSION
+      // ========================================
+
       const doctorSession = {
         id:
-          doctor.mobile ||
-          doctor.email ||
-          doctor.regNumber ||
+          doctor._id ||
+          doctor.id ||
           identifier.trim(),
 
-        doctorId: doctor._id || doctor.id || null,
+        doctorId:
+          doctor._id ||
+          doctor.id ||
+          null,
 
         role: "doctor",
 
-        fullName: doctor.fullName || "",
+        fullName:
+          doctor.fullName || "",
 
-        email: doctor.email || "",
+        email:
+          doctor.email || "",
 
-        mobile: doctor.mobile || "",
+        mobile:
+          doctor.mobile || "",
 
-        regNumber: doctor.regNumber || "",
+        specialization:
+          doctor.specialization ||
+          doctor.specialty ||
+          "",
 
-        loginTime: new Date().toISOString(),
+        degree:
+          doctor.degree || "",
+
+        regNumber:
+          doctor.regNumber || "",
+
+        regAuthority:
+          doctor.regAuthority ||
+          doctor.registrationAuthority ||
+          "",
+
+        hospitalClinic:
+          doctor.hospitalClinic || "",
+
+        department:
+          doctor.department || "",
+
+        loginTime:
+          new Date().toISOString(),
       };
+
+      // ========================================
+      // SAVE DOCTOR SESSION
+      // ========================================
 
       localStorage.setItem(
         "ayush_doctor_session",
         JSON.stringify(doctorSession)
       );
 
-      navigate("/doctor/dashboard");
+      // Also keep doctor information separately
+      localStorage.setItem(
+        "doctor_user",
+        JSON.stringify(doctor)
+      );
+
+      // ========================================
+      // LOGIN SUCCESS
+      // ========================================
+
+      navigate("/doctor/dashboard", {
+        replace: true,
+      });
 
     } catch (error) {
-      console.error("Doctor login error:", error);
+      console.error(
+        "Doctor login error:",
+        error
+      );
 
       setError(
         error.message ||
@@ -98,7 +163,9 @@ export default function DoctorLogin() {
 
           <div className="bg-white/90 backdrop-blur-xl border border-white/80 rounded-[28px] shadow-[0_24px_70px_rgba(15,23,42,0.12)] p-6 md:p-8">
 
-            {/* BACK BUTTON */}
+            {/* ========================================
+                BACK BUTTON
+            ======================================== */}
 
             <div className="mb-5">
 
@@ -112,7 +179,9 @@ export default function DoctorLogin() {
 
             </div>
 
-            {/* HEADER */}
+            {/* ========================================
+                HEADER
+            ======================================== */}
 
             <div className="text-center mb-7">
 
@@ -130,7 +199,9 @@ export default function DoctorLogin() {
 
             </div>
 
-            {/* ERROR */}
+            {/* ========================================
+                ERROR
+            ======================================== */}
 
             {error && (
               <div className="mb-5 p-3 bg-red-50 border border-red-200 text-red-600 rounded-xl text-sm text-center">
@@ -138,7 +209,9 @@ export default function DoctorLogin() {
               </div>
             )}
 
-            {/* LOGIN FORM */}
+            {/* ========================================
+                LOGIN FORM
+            ======================================== */}
 
             <form
               onSubmit={handleLogin}
@@ -157,7 +230,11 @@ export default function DoctorLogin() {
                   type="text"
                   required
                   value={identifier}
-                  onChange={(e) => setIdentifier(e.target.value)}
+                  onChange={(e) =>
+                    setIdentifier(
+                      e.target.value
+                    )
+                  }
                   placeholder="Enter registration no., mobile or email"
                   className="border border-slate-200 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/10 p-3 w-full rounded-xl outline-none"
                 />
@@ -175,10 +252,18 @@ export default function DoctorLogin() {
                 <div className="relative">
 
                   <input
-                    type={showPassword ? "text" : "password"}
+                    type={
+                      showPassword
+                        ? "text"
+                        : "password"
+                    }
                     required
                     value={password}
-                    onChange={(e) => setPassword(e.target.value)}
+                    onChange={(e) =>
+                      setPassword(
+                        e.target.value
+                      )
+                    }
                     placeholder="Enter your password"
                     className="border border-slate-200 focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/10 p-3 pr-12 w-full rounded-xl outline-none"
                   />
@@ -186,11 +271,15 @@ export default function DoctorLogin() {
                   <button
                     type="button"
                     onClick={() =>
-                      setShowPassword((prev) => !prev)
+                      setShowPassword(
+                        (prev) => !prev
+                      )
                     }
                     className="absolute right-3 top-1/2 -translate-y-1/2 text-sm text-slate-500 hover:text-emerald-600"
                   >
-                    {showPassword ? "Hide" : "Show"}
+                    {showPassword
+                      ? "Hide"
+                      : "Show"}
                   </button>
 
                 </div>
@@ -210,12 +299,16 @@ export default function DoctorLogin() {
                 disabled={isLoading}
                 className="w-full bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white font-semibold py-3 px-4 rounded-xl shadow-md transition"
               >
-                {isLoading ? "Logging in..." : "Login →"}
+                {isLoading
+                  ? "Logging in..."
+                  : "Login →"}
               </button>
 
             </form>
 
-            {/* SIGNUP */}
+            {/* ========================================
+                SIGNUP
+            ======================================== */}
 
             <div className="text-center pt-5 mt-5 border-t border-slate-100 text-sm text-slate-500">
 
@@ -223,7 +316,9 @@ export default function DoctorLogin() {
 
               <button
                 type="button"
-                onClick={() => navigate("/doctor/signup")}
+                onClick={() =>
+                  navigate("/doctor/signup")
+                }
                 className="ml-1 text-emerald-600 font-bold hover:underline"
               >
                 Register Here

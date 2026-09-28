@@ -1,16 +1,19 @@
 import crypto from "crypto";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
+
 import Patient from "../models/Patient.js";
 import Doctor from "../models/Doctor.js";
 import { INDIAN_LANGUAGES } from "../models/Language.js";
 import ABDMRecord from "../models/ABDMRecord.js";
 import { linkABHAAndFetchRecords } from "../services/abdmService.js";
 
-const generateSecureOTP = () => crypto.randomInt(100000, 999999).toString();
+// =====================================================
+// HELPERS
+// =====================================================
 
-const generateDoctorCode = () => {
-  return `DOC-${Math.random().toString(36).substring(2, 8).toUpperCase()}`;
+const generateSecureOTP = () => {
+  return crypto.randomInt(100000, 999999).toString();
 };
 
 const normalizeLanguagePreference = (language) => {
@@ -35,14 +38,79 @@ const normalizeLanguagePreference = (language) => {
 };
 
 // =====================================================
+// JWT HELPERS
+// =====================================================
+
+const generatePatientToken = (patient) => {
+  return jwt.sign(
+    {
+      id: patient._id,
+      role: "patient",
+      languagePreference: patient.languagePreference,
+    },
+    process.env.JWT_SECRET,
+    {
+      expiresIn: "24h",
+    },
+  );
+};
+
+const generateDoctorToken = (doctor) => {
+  return jwt.sign(
+    {
+      id: doctor._id,
+      role: "doctor",
+    },
+    process.env.JWT_SECRET,
+    {
+      expiresIn: "24h",
+    },
+  );
+};
+
+// =====================================================
+// DOCTOR RESPONSE HELPER
+// =====================================================
+
+const formatDoctorResponse = (doctor) => {
+  return {
+    id: doctor._id,
+
+    fullName: doctor.fullName,
+
+    mobile: doctor.mobile,
+
+    email: doctor.email || "",
+
+    specialization: doctor.specialization || doctor.specialty || "Ayurveda",
+
+    degree: doctor.degree || "",
+
+    regNumber: doctor.regNumber || "",
+
+    regAuthority: doctor.regAuthority || doctor.registrationAuthority || "",
+
+    hospitalClinic: doctor.hospitalClinic || "",
+
+    department: doctor.department || "",
+
+    age: doctor.age ?? "",
+
+    gender: doctor.gender || "",
+  };
+};
+
+// =====================================================
 // 1. PATIENT SIGNUP
 // =====================================================
+
 export const registerPatient = async (req, res) => {
   try {
     const { fullName, dob, gender, abhaNumber, mobile, language, abdmConsent } =
       req.body;
 
     const normalizedMobile = String(mobile || "").replace(/\D/g, "");
+
     const normalizedAbhaNumber = String(abhaNumber || "").trim();
 
     const hasAbdmConsent =
@@ -54,6 +122,7 @@ export const registerPatient = async (req, res) => {
     // -----------------------------------------------
     // Validate required fields
     // -----------------------------------------------
+
     if (
       !fullName?.trim() ||
       !dob ||
@@ -69,6 +138,7 @@ export const registerPatient = async (req, res) => {
     // -----------------------------------------------
     // ABHA + consent validation
     // -----------------------------------------------
+
     if (normalizedAbhaNumber && !hasAbdmConsent) {
       return res.status(400).json({
         message: "ABDM consent is required when an ABHA ID is provided.",
@@ -78,6 +148,7 @@ export const registerPatient = async (req, res) => {
     // -----------------------------------------------
     // Check duplicate mobile
     // -----------------------------------------------
+
     const existingPatient = await Patient.findOne({
       mobile: normalizedMobile,
     });
@@ -91,6 +162,7 @@ export const registerPatient = async (req, res) => {
     // -----------------------------------------------
     // Check duplicate ABHA
     // -----------------------------------------------
+
     if (normalizedAbhaNumber) {
       const existingAbha = await Patient.findOne({
         abhaId: normalizedAbhaNumber,
@@ -104,7 +176,7 @@ export const registerPatient = async (req, res) => {
     }
 
     // =================================================
-    // STEP 1: CREATE PATIENT FIRST
+    // CREATE PATIENT
     // =================================================
 
     const patient = new Patient({
@@ -120,7 +192,6 @@ export const registerPatient = async (req, res) => {
 
       languagePreference: normalizeLanguagePreference(language),
 
-      // Default values before ABDM prototype flow
       abdmLinked: false,
 
       abdmConsentStatus: normalizedAbhaNumber ? "Pending" : "NotRequested",
@@ -135,10 +206,11 @@ export const registerPatient = async (req, res) => {
     console.log(`[Patient Signup] Patient created: ${patient._id}`);
 
     // =================================================
-    // STEP 2: ABDM PROTOTYPE FLOW
+    // ABDM PROTOTYPE FLOW
     // =================================================
 
     let importedRecords = [];
+
     let consentId = null;
 
     if (normalizedAbhaNumber && hasAbdmConsent) {
@@ -146,50 +218,71 @@ export const registerPatient = async (req, res) => {
 
       const abdmResult = await linkABHAAndFetchRecords({
         patientId: patient._id.toString(),
+
         abhaId: normalizedAbhaNumber,
       });
 
-      // -----------------------------------------------
-      // ABDM flow failed
-      // -----------------------------------------------
+      // ---------------------------------------------
+      // ABDM FLOW FAILED
+      // ---------------------------------------------
+
       if (!abdmResult.success) {
         console.error("[ABDM Prototype] Flow failed:", abdmResult.message);
 
-        // Keep patient account but mark ABDM flow as pending
         patient.abdmConsentStatus = "Pending";
+
         patient.abdmLinked = false;
+
         patient.abdmLinkedAt = null;
 
         await patient.save();
+
+        const token = generatePatientToken(patient);
 
         return res.status(201).json({
           message:
             "Patient registered successfully, but ABDM record linking is pending.",
 
+          token,
+
           patientId: patient._id,
 
           patient: {
             id: patient._id,
+
             fullName: patient.fullName,
+
             mobile: patient.mobile,
+
             abhaId: patient.abhaId || null,
+
+            dob: patient.dob,
+
+            gender: patient.gender,
+
             languagePreference: patient.languagePreference,
+
             abdmConsentStatus: patient.abdmConsentStatus,
+
             abdmLinked: patient.abdmLinked,
+
             importedRecordCount: 0,
           },
         });
       }
 
-      // -----------------------------------------------
-      // ABDM flow successful
-      // -----------------------------------------------
+      // ---------------------------------------------
+      // ABDM FLOW SUCCESSFUL
+      // ---------------------------------------------
+
       consentId = abdmResult.consent?.consentId || null;
 
       importedRecords = abdmResult.records || [];
 
       patient.abdmConsentStatus = "Granted";
+
       patient.abdmLinked = true;
+
       patient.abdmLinkedAt = new Date();
 
       await patient.save();
@@ -200,7 +293,7 @@ export const registerPatient = async (req, res) => {
     }
 
     // =================================================
-    // STEP 3: SAVE HEALTH RECORDS INTO HIS
+    // SAVE HEALTH RECORDS
     // =================================================
 
     if (consentId && importedRecords.length > 0) {
@@ -244,18 +337,23 @@ export const registerPatient = async (req, res) => {
         );
       } catch (recordError) {
         console.error("[HIS] Failed to save ABDM records:", recordError);
-
-        // Patient remains linked even if record storage fails.
-        // The record-storage problem can be retried separately.
       }
     }
 
     // =================================================
-    // STEP 4: FINAL RESPONSE
+    // GENERATE PATIENT TOKEN
+    // =================================================
+
+    const token = generatePatientToken(patient);
+
+    // =================================================
+    // FINAL RESPONSE
     // =================================================
 
     return res.status(201).json({
       message: "Patient registered successfully.",
+
+      token,
 
       patientId: patient._id,
 
@@ -267,6 +365,10 @@ export const registerPatient = async (req, res) => {
         mobile: patient.mobile,
 
         abhaId: patient.abhaId || null,
+
+        dob: patient.dob,
+
+        gender: patient.gender,
 
         languagePreference: patient.languagePreference,
 
@@ -291,12 +393,28 @@ export const registerPatient = async (req, res) => {
 // =====================================================
 // 2. PATIENT LOGIN - SEND OTP
 // =====================================================
+
 export const sendPatientOTP = async (req, res) => {
   try {
     const { identifier } = req.body;
 
+    const normalizedIdentifier = String(identifier || "").trim();
+
+    if (!normalizedIdentifier) {
+      return res.status(400).json({
+        message: "Mobile number or ABHA ID is required.",
+      });
+    }
+
     const patient = await Patient.findOne({
-      $or: [{ mobile: identifier }, { abhaId: identifier }],
+      $or: [
+        {
+          mobile: normalizedIdentifier,
+        },
+        {
+          abhaId: normalizedIdentifier,
+        },
+      ],
     });
 
     if (!patient) {
@@ -309,20 +427,26 @@ export const sendPatientOTP = async (req, res) => {
 
     patient.otp = {
       code: otpCode,
+
       expiresAt: new Date(Date.now() + 10 * 60 * 1000),
     };
 
     await patient.save();
 
-    console.log(`[Patient OTP] Sent to ${identifier}: ${otpCode}`);
+    console.log(`[Patient OTP] Sent to ${normalizedIdentifier}: ${otpCode}`);
 
-    res.status(200).json({
+    return res.status(200).json({
       message: "OTP sent to registered patient.",
+
+      // Demo only
       demoOtp: otpCode,
     });
   } catch (error) {
-    res.status(500).json({
+    console.error("Send patient OTP error:", error);
+
+    return res.status(500).json({
       message: "Failed to send OTP.",
+
       error: error.message,
     });
   }
@@ -331,15 +455,27 @@ export const sendPatientOTP = async (req, res) => {
 // =====================================================
 // 3. PATIENT LOGIN - VERIFY OTP
 // =====================================================
+
 export const verifyPatientOTP = async (req, res) => {
   try {
     const { identifier, otp } = req.body;
 
+    const normalizedIdentifier = String(identifier || "").trim();
+
+    const normalizedOtp = String(otp || "").trim();
+
     const patient = await Patient.findOne({
-      $or: [{ mobile: identifier }, { abhaId: identifier }],
+      $or: [
+        {
+          mobile: normalizedIdentifier,
+        },
+        {
+          abhaId: normalizedIdentifier,
+        },
+      ],
     });
 
-    if (!patient || !patient.otp || patient.otp.code !== otp) {
+    if (!patient || !patient.otp || patient.otp.code !== normalizedOtp) {
       return res.status(400).json({
         message: "Invalid OTP provided.",
       });
@@ -351,40 +487,40 @@ export const verifyPatientOTP = async (req, res) => {
       });
     }
 
-    // Clear OTP after successful login
+    // Clear OTP after login
     patient.otp = undefined;
 
     await patient.save();
 
-    const token = jwt.sign(
-      {
-        id: patient._id,
-        role: "patient",
-        languagePreference: patient.languagePreference,
-      },
-      process.env.JWT_SECRET,
-      {
-        expiresIn: "24h",
-      },
-    );
+    const token = generatePatientToken(patient);
 
-    res.status(200).json({
+    return res.status(200).json({
       message: "Login successful.",
+
       token,
 
       patient: {
         id: patient._id,
+
         fullName: patient.fullName,
+
         mobile: patient.mobile,
-        abhaId: patient.abhaId,
+
+        abhaId: patient.abhaId || null,
+
         dob: patient.dob,
+
         gender: patient.gender,
+
         languagePreference: patient.languagePreference,
       },
     });
   } catch (error) {
-    res.status(500).json({
+    console.error("Patient login error:", error);
+
+    return res.status(500).json({
       message: "Login failed.",
+
       error: error.message,
     });
   }
@@ -393,6 +529,7 @@ export const verifyPatientOTP = async (req, res) => {
 // =====================================================
 // 4. DOCTOR SIGNUP
 // =====================================================
+
 export const registerDoctor = async (req, res) => {
   try {
     const {
@@ -401,18 +538,12 @@ export const registerDoctor = async (req, res) => {
       gender,
       degree,
 
-      // Frontend currently sends "specialty"
       specialty,
-
-      // Also support "specialization"
       specialization,
 
       regNumber,
 
-      // Frontend sends registrationAuthority
       registrationAuthority,
-
-      // Also support existing backend name
       regAuthority,
 
       hospitalClinic,
@@ -421,12 +552,14 @@ export const registerDoctor = async (req, res) => {
       password,
       mobile,
       email,
+
       abdmConsent,
     } = req.body;
 
     // -----------------------------------------------
     // Validate required fields
     // -----------------------------------------------
+
     if (
       !fullName?.trim() ||
       !mobile?.trim() ||
@@ -437,49 +570,22 @@ export const registerDoctor = async (req, res) => {
     ) {
       return res.status(400).json({
         success: false,
+
         message:
           "Full name, mobile, registration number, password, hospital/clinic, and department are required.",
       });
     }
 
     // -----------------------------------------------
-    // Check duplicate registration number
+    // Normalize values
     // -----------------------------------------------
-    const existingDoctor = await Doctor.findOne({
-      regNumber: regNumber.trim(),
-    });
 
-    if (existingDoctor) {
-      return res.status(400).json({
-        success: false,
-        message: "Doctor with this registration number already exists.",
-      });
-    }
+    const normalizedMobile = mobile.trim();
 
-    // -----------------------------------------------
-    // Check duplicate mobile
-    // -----------------------------------------------
-    const existingMobile = await Doctor.findOne({
-      mobile: mobile.trim(),
-    });
+    const normalizedRegNumber = regNumber.trim();
 
-    if (existingMobile) {
-      return res.status(400).json({
-        success: false,
-        message: "Doctor with this mobile number already exists.",
-      });
-    }
+    const normalizedEmail = email?.trim() || "";
 
-    // -----------------------------------------------
-    // Hash password
-    // -----------------------------------------------
-    const salt = await bcrypt.genSalt(10);
-
-    const passwordHash = await bcrypt.hash(password, salt);
-
-    // -----------------------------------------------
-    // Support both frontend/backend field names
-    // -----------------------------------------------
     const finalSpecialization =
       specialization?.trim() || specialty?.trim() || "Ayurveda";
 
@@ -487,28 +593,87 @@ export const registerDoctor = async (req, res) => {
       registrationAuthority?.trim() || regAuthority?.trim() || "";
 
     // -----------------------------------------------
-    // Create doctor
+    // Duplicate registration number
     // -----------------------------------------------
+
+    const existingDoctor = await Doctor.findOne({
+      regNumber: normalizedRegNumber,
+    });
+
+    if (existingDoctor) {
+      return res.status(400).json({
+        success: false,
+
+        message: "Doctor with this registration number already exists.",
+      });
+    }
+
+    // -----------------------------------------------
+    // Duplicate mobile
+    // -----------------------------------------------
+
+    const existingMobile = await Doctor.findOne({
+      mobile: normalizedMobile,
+    });
+
+    if (existingMobile) {
+      return res.status(400).json({
+        success: false,
+
+        message: "Doctor with this mobile number already exists.",
+      });
+    }
+
+    // -----------------------------------------------
+    // Duplicate email
+    // -----------------------------------------------
+
+    if (normalizedEmail) {
+      const existingEmail = await Doctor.findOne({
+        email: normalizedEmail,
+      });
+
+      if (existingEmail) {
+        return res.status(400).json({
+          success: false,
+
+          message: "Doctor with this email already exists.",
+        });
+      }
+    }
+
+    // -----------------------------------------------
+    // Hash password
+    // -----------------------------------------------
+
+    const passwordHash = await bcrypt.hash(password, 10);
+
+    // =================================================
+    // CREATE DOCTOR
+    // =================================================
+
     const doctor = new Doctor({
       fullName: fullName.trim(),
 
-      mobile: mobile.trim(),
+      mobile: normalizedMobile,
 
-      email: email?.trim() || undefined,
+      email: normalizedEmail || undefined,
 
-      age: age ? Number(age) : undefined,
+      age:
+        age !== undefined && age !== null && age !== ""
+          ? Number(age)
+          : undefined,
 
-      gender,
+      gender: gender || "",
 
       degree: degree?.trim() || "",
 
       specialization: finalSpecialization,
 
-      regNumber: regNumber.trim(),
+      regNumber: normalizedRegNumber,
 
       regAuthority: finalRegistrationAuthority,
 
-      // NEW FIELDS
       hospitalClinic: hospitalClinic.trim(),
 
       department: department.trim(),
@@ -520,35 +685,54 @@ export const registerDoctor = async (req, res) => {
 
     await doctor.save();
 
+    console.log(`[Doctor Signup] Doctor created: ${doctor._id}`);
+
+    // -----------------------------------------------
+    // IMPORTANT:
+    // We return doctor details so the frontend can
+    // immediately create ayush_doctor_session.
+    // -----------------------------------------------
+
+    const doctorData = formatDoctorResponse(doctor);
+
     return res.status(201).json({
       success: true,
+
       message: "Doctor registered successfully.",
+
       doctorId: doctor._id,
+
+      doctor: doctorData,
     });
   } catch (error) {
     console.error("Doctor registration error:", error);
 
     return res.status(500).json({
       success: false,
+
       message: "Doctor registration failed.",
+
       error: error.message,
     });
   }
 };
 
 // =====================================================
-// 5. DOCTOR LOGIN - PASSWORD
+// 5. DOCTOR LOGIN
 // =====================================================
+
 export const loginDoctor = async (req, res) => {
   try {
     const { identifier, password } = req.body;
 
     // -----------------------------------------------
-    // Validate login fields
+    // Validate
     // -----------------------------------------------
+
     if (!identifier?.trim() || !password) {
       return res.status(400).json({
         success: false,
+
         message:
           "Medical Registration Number, Mobile Number or Email and password are required.",
       });
@@ -557,35 +741,41 @@ export const loginDoctor = async (req, res) => {
     const normalizedIdentifier = identifier.trim();
 
     // -----------------------------------------------
-    // Find doctor using:
-    // 1. Medical Registration Number
-    // 2. Mobile Number
-    // 3. Email
+    // Find doctor
     // -----------------------------------------------
+
     const doctor = await Doctor.findOne({
       $or: [
-        { regNumber: normalizedIdentifier },
-        { mobile: normalizedIdentifier },
-        { email: normalizedIdentifier },
+        {
+          regNumber: normalizedIdentifier,
+        },
+
+        {
+          mobile: normalizedIdentifier,
+        },
+
+        {
+          email: normalizedIdentifier,
+        },
       ],
     });
 
-    // -----------------------------------------------
-    // Doctor not found
-    // -----------------------------------------------
     if (!doctor) {
       return res.status(401).json({
         success: false,
+
         message: "Invalid login credentials.",
       });
     }
 
     // -----------------------------------------------
-    // Verify password
+    // Check password
     // -----------------------------------------------
+
     if (!doctor.passwordHash) {
       return res.status(401).json({
         success: false,
+
         message: "Password is not configured for this doctor account.",
       });
     }
@@ -595,6 +785,7 @@ export const loginDoctor = async (req, res) => {
     if (!isPasswordValid) {
       return res.status(401).json({
         success: false,
+
         message: "Invalid login credentials.",
       });
     }
@@ -602,58 +793,30 @@ export const loginDoctor = async (req, res) => {
     // -----------------------------------------------
     // Generate JWT
     // -----------------------------------------------
-    const token = jwt.sign(
-      {
-        id: doctor._id,
-        role: "doctor",
-      },
-      process.env.JWT_SECRET,
-      {
-        expiresIn: "24h",
-      },
-    );
 
-    // -----------------------------------------------
-    // Successful login
-    // -----------------------------------------------
+    const token = generateDoctorToken(doctor);
+
+    const doctorData = formatDoctorResponse(doctor);
+
+    console.log(`[Doctor Login] Doctor logged in: ${doctor._id}`);
+
     return res.status(200).json({
       success: true,
+
       message: "Doctor login successful.",
 
       token,
 
-      doctor: {
-        id: doctor._id,
-
-        fullName: doctor.fullName,
-
-        mobile: doctor.mobile,
-
-        email: doctor.email || "",
-
-        specialization: doctor.specialization || "Ayurveda",
-
-        degree: doctor.degree || "",
-
-        regNumber: doctor.regNumber,
-
-        regAuthority: doctor.regAuthority || "",
-
-        hospitalClinic: doctor.hospitalClinic || "",
-
-        department: doctor.department || "",
-
-        age: doctor.age || "",
-
-        gender: doctor.gender || "",
-      },
+      doctor: doctorData,
     });
   } catch (error) {
     console.error("Doctor login error:", error);
 
     return res.status(500).json({
       success: false,
+
       message: "Doctor login failed.",
+
       error: error.message,
     });
   }
@@ -662,6 +825,7 @@ export const loginDoctor = async (req, res) => {
 // =====================================================
 // 6. UPDATE PATIENT LANGUAGE
 // =====================================================
+
 export const updatePatientLanguage = async (req, res) => {
   try {
     const { languageCode } = req.body;
@@ -674,11 +838,13 @@ export const updatePatientLanguage = async (req, res) => {
 
     const patient = await Patient.findByIdAndUpdate(
       req.user.id,
+
       {
         languagePreference: languageCode,
       },
+
       {
-        returnDocument: "after",
+        new: true,
         runValidators: true,
       },
     ).select("_id languagePreference");
@@ -689,13 +855,17 @@ export const updatePatientLanguage = async (req, res) => {
       });
     }
 
-    res.status(200).json({
+    return res.status(200).json({
       message: "Language preference updated successfully.",
+
       languageCode: patient.languagePreference,
     });
   } catch (error) {
-    res.status(500).json({
+    console.error("Update patient language error:", error);
+
+    return res.status(500).json({
       message: "Failed to update language preference.",
+
       error: error.message,
     });
   }
@@ -704,6 +874,7 @@ export const updatePatientLanguage = async (req, res) => {
 // =====================================================
 // 7. COMPLETE DOCTOR REGISTRATION
 // =====================================================
+
 export const registerDoctorComplete = async (req, res) => {
   try {
     const {
@@ -719,7 +890,6 @@ export const registerDoctorComplete = async (req, res) => {
 
       regNumber,
 
-      // Support both names
       regAuthority,
       registrationAuthority,
 
@@ -733,6 +903,7 @@ export const registerDoctorComplete = async (req, res) => {
     // -----------------------------------------------
     // Validate required fields
     // -----------------------------------------------
+
     if (
       !fullName?.trim() ||
       !mobile?.trim() ||
@@ -743,49 +914,22 @@ export const registerDoctorComplete = async (req, res) => {
     ) {
       return res.status(400).json({
         success: false,
+
         message:
           "Full name, mobile, registration number, password, hospital/clinic, and department are required.",
       });
     }
 
     // -----------------------------------------------
-    // Check duplicate registration number
+    // Normalize
     // -----------------------------------------------
-    const existingDoctor = await Doctor.findOne({
-      regNumber: regNumber.trim(),
-    });
 
-    if (existingDoctor) {
-      return res.status(400).json({
-        success: false,
-        message: "Doctor with this registration number already exists.",
-      });
-    }
+    const normalizedMobile = mobile.trim();
 
-    // -----------------------------------------------
-    // Check duplicate mobile
-    // -----------------------------------------------
-    const existingMobile = await Doctor.findOne({
-      mobile: mobile.trim(),
-    });
+    const normalizedRegNumber = regNumber.trim();
 
-    if (existingMobile) {
-      return res.status(400).json({
-        success: false,
-        message: "Doctor with this mobile number already exists.",
-      });
-    }
+    const normalizedEmail = email?.trim() || "";
 
-    // -----------------------------------------------
-    // Hash password
-    // -----------------------------------------------
-    const salt = await bcrypt.genSalt(10);
-
-    const passwordHash = await bcrypt.hash(password, salt);
-
-    // -----------------------------------------------
-    // Normalize field names
-    // -----------------------------------------------
     const finalSpecialization =
       specialization?.trim() || specialty?.trim() || "Ayurveda";
 
@@ -793,24 +937,84 @@ export const registerDoctorComplete = async (req, res) => {
       registrationAuthority?.trim() || regAuthority?.trim() || "";
 
     // -----------------------------------------------
+    // Duplicate registration number
+    // -----------------------------------------------
+
+    const existingDoctor = await Doctor.findOne({
+      regNumber: normalizedRegNumber,
+    });
+
+    if (existingDoctor) {
+      return res.status(400).json({
+        success: false,
+
+        message: "Doctor with this registration number already exists.",
+      });
+    }
+
+    // -----------------------------------------------
+    // Duplicate mobile
+    // -----------------------------------------------
+
+    const existingMobile = await Doctor.findOne({
+      mobile: normalizedMobile,
+    });
+
+    if (existingMobile) {
+      return res.status(400).json({
+        success: false,
+
+        message: "Doctor with this mobile number already exists.",
+      });
+    }
+
+    // -----------------------------------------------
+    // Duplicate email
+    // -----------------------------------------------
+
+    if (normalizedEmail) {
+      const existingEmail = await Doctor.findOne({
+        email: normalizedEmail,
+      });
+
+      if (existingEmail) {
+        return res.status(400).json({
+          success: false,
+
+          message: "Doctor with this email already exists.",
+        });
+      }
+    }
+
+    // -----------------------------------------------
+    // Hash password
+    // -----------------------------------------------
+
+    const passwordHash = await bcrypt.hash(password, 10);
+
+    // -----------------------------------------------
     // Create doctor
     // -----------------------------------------------
+
     const doctor = new Doctor({
       fullName: fullName.trim(),
 
-      mobile: mobile.trim(),
+      mobile: normalizedMobile,
 
-      email: email?.trim() || undefined,
+      email: normalizedEmail || undefined,
 
-      age: age ? Number(age) : undefined,
+      age:
+        age !== undefined && age !== null && age !== ""
+          ? Number(age)
+          : undefined,
 
-      gender,
+      gender: gender || "",
 
       degree: degree?.trim() || "",
 
       specialization: finalSpecialization,
 
-      regNumber: regNumber.trim(),
+      regNumber: normalizedRegNumber,
 
       regAuthority: finalRegistrationAuthority,
 
@@ -825,17 +1029,27 @@ export const registerDoctorComplete = async (req, res) => {
 
     await doctor.save();
 
+    console.log(`[Doctor Complete Signup] Doctor created: ${doctor._id}`);
+
+    const doctorData = formatDoctorResponse(doctor);
+
     return res.status(201).json({
       success: true,
+
       message: "Doctor registered successfully with ABDM consent.",
+
       doctorId: doctor._id,
+
+      doctor: doctorData,
     });
   } catch (error) {
     console.error("Complete doctor registration error:", error);
 
     return res.status(500).json({
       success: false,
+
       message: "Doctor registration failed.",
+
       error: error.message,
     });
   }

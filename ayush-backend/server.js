@@ -14,7 +14,7 @@ import chatbotRoutes from "./routes/chatbotRoutes.js";
 import doctorRoutes from "./routes/doctorRoutes.js";
 import abdmRoutes from "./routes/abdmRoutes.js";
 
-dotenv.config();
+dotenv.config({ path: "./.env" });
 
 const app = express();
 
